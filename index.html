@@ -74,7 +74,9 @@
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
 import { getFirestore, collection, addDoc, onSnapshot, deleteDoc, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-
+import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } 
+from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+  
 const firebaseConfig = {
   apiKey: "AIzaSyCOL08Us-2m5w7rznnwUGudTz-QOxyi1l4",
   authDomain: "school-management-system-93aba.firebaseapp.com",
@@ -83,7 +85,8 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
-
+const auth = getAuth(app);
+  
 let allData = [];
 
 // LOGIN
