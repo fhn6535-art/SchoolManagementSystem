@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>School Management</title>
+</head>
+<body>
+
+<h2>Add Student</h2>
+<input id="name" placeholder="Name">
+<input id="class" placeholder="Class">
+<input id="roll" placeholder="Roll">
+<button onclick="addStudent()">Add Student</button>
+
+<hr>
+
+<h2>Add Marks</h2>
+<input id="studentId" placeholder="Student ID">
+<input id="subject" placeholder="Subject">
+<input id="marks" placeholder="Marks">
+<input id="total" placeholder="Total">
+<button onclick="addMarks()">Add Marks</button>
+
+<hr>
+
+<h2>Check Result</h2>
+<input id="checkId" placeholder="Student ID">
+<button onclick="getResult()">Show Result</button>
+
+<p id="result"></p>
+
+<!-- Firebase -->
+<script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore-compat.js"></script>
+
+<script>
+const firebaseConfig = {
+  // 👉 ekhane tor firebase config paste kor
+};
+
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+
+// Add Student
+function addStudent() {
+  let name = document.getElementById("name").value;
+  let className = document.getElementById("class").value;
+  let roll = document.getElementById("roll").value;
+
+  db.collection("students").add({
+    name, class: className, roll
+  }).then(() => {
+    alert("Student Added!");
+  });
+}
+
+// Add Marks
+function addMarks() {
+  let studentId = document.getElementById("studentId").value;
+  let subject = document.getElementById("subject").value;
+  let marks = Number(document.getElementById("marks").value);
+  let total = Number(document.getElementById("total").value);
+
+  db.collection("marks").add({
+    studentId, subject, marks, total
+  }).then(() => {
+    alert("Marks Added!");
+  });
+}
+
+// Get Result
+function getResult() {
+  let id = document.getElementById("checkId").value;
+
+  db.collection("marks")
+    .where("studentId", "==", id)
+    .get()
+    .then(snapshot => {
+      let totalMarks = 0;
+      let totalFull = 0;
+
+      snapshot.forEach(doc => {
+        let data = doc.data();
+        totalMarks += data.marks;
+        totalFull += data.total;
+      });
+
+      let percent = (totalMarks / totalFull) * 100;
+
+      let suggestion = percent < 50 
+        ? "⚠️ Weak - Practice needed"
+        : "✅ Good";
+
+      document.getElementById("result").innerHTML =
+        "Percentage: " + percent.toFixed(2) + "%<br>" + suggestion;
+    });
+}
+</script>
+
+<h2>📅 Attendance</h2>
+
+
+<select id="attStatus">
+  <option value="present">Present</option>
+  <option value="absent">Absent</option>
+</select>
+
+<button onclick="markAttendance()">Save Attendance</button>
+
+<script>
+
+// Load students for attendance dropdown
+function loadAttendanceStudents() {
+  db.collection("students").get().then(snapshot => {
+    let select = document.getElementById("attStudent");
+
+    snapshot.forEach(doc => {
+      let option = document.createElement("option");
+      option.value = doc.id;
+      option.text = doc.data().name;
+
+      select.appendChild(option);
+    });
+  });
+}
+window.onload = function () {
+  loadAttendanceStudents();
+  loadStudents(); // (marks dropdown এর জন্য যদি থাকে)
+};
+// Save attendance
+function markAttendance() {
+  let studentId = document.getElementById("attStudent").value;
+  let status = document.getElementById("attStatus").value;
+
+  let today = new Date().toISOString().split("T")[0];
+
+  db.collection("attendance").add({
+    studentId,
+    status,
+    date: today
+  }).then(() => {
+    alert("Attendance Saved!");
+  });
+}
+
+// call on load
+loadAttendanceStudents();
+
+</script>
+</body>
+</html>

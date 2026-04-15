@@ -1,0 +1,16 @@
+🔥 School System v3 ready! (Pro version)
+
+এখন তোর সিস্টেমে যুক্ত হলো:
+
+🔐 Security
+Admin login system (password: admin123)
+📊 Smart Analytics
+Total students
+Present / Absent count
+Average marks auto calculation
+📄 Reports
+CSV export (Excel support)
+PDF full report download
+⚡ Stability
+localStorage auto save
+refresh দিলেও data থাকবে

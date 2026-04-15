@@ -1,0 +1,11 @@
+firebase login
+
+firebase init
+
+firebase deploy
+
+| Field Name | Type   | Value |
+| ---------- | ------ | ----- |
+| name       | string | Rahim |
+| class      | string | 1     |
+| roll       | string | 5     |

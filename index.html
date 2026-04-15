@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>FH School Management System</title>
+  <style>
+    body { font-family: Arial; padding: 20px; }
+    input, select, button { margin: 5px; padding: 8px; }
+    table { border-collapse: collapse; width: 100%; margin-top: 15px; }
+    th, td { border: 1px solid #ccc; padding: 8px; text-align: center; }
+  </style>
+</head>
+<body>
+
+<h2>🔐 Login</h2>
+
+<div id="loginBox">
+  <input id="email" placeholder="Email"><br><br>
+  <input id="password" type="password" placeholder="Password"><br><br>
+  <button onclick="login()">Login</button>
+</div>
+
+<div id="app" style="display:none;">
+<h2>🔥 FH School Management System</h2>
+
+<!-- Dashboard -->
+<div>
+  <b>Total:</b> <span id="total">0</span> |
+  <b>Avg Marks:</b> <span id="avg">0</span> | <button onclick="logout()">Logout</button><br><br>
+</div>
+
+<br>
+
+<!-- Form -->
+<input id="name" placeholder="Name">
+<input id="class" placeholder="Class">
+<input id="roll" placeholder="Roll">
+<input id="marks" type="number" placeholder="Marks">
+
+<select id="attendance">
+  <option>Present</option>
+  <option>Absent</option>
+  <option>Late</option>
+</select>
+
+<!-- এখানে addStudent() এর বদলে addStudents() হবে -->
+<button onclick="addStudents()">Add</button> 
+
+<br>
+
+<!-- Search -->
+<input id="search" placeholder="Search by name..." onkeyup="filterData()">
+
+<!-- Export -->
+<button onclick="exportCSV()">CSV</button>
+<button onclick="exportPDF()">PDF</button>
+
+<!-- Table -->
+<table>
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th>Class</th>
+      <th>Roll</th>
+      <th>Marks</th>
+      <th>Attendance</th>
+     <th>Action</th>
+    </tr>
+  </thead>
+  <tbody id="table"></tbody>
+</table>
+
+<!-- Firebase -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import { getFirestore, collection, addDoc, onSnapshot, deleteDoc, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyCOL08Us-2m5w7rznnwUGudTz-QOxyi1l4",
+  authDomain: "school-management-system-93aba.firebaseapp.com",
+  projectId: "school-management-system-93aba"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+let allData = [];
+
+// LOGIN
+window.login = async function() {
+  const email = document.getElementById("email").value;
+  const pass = document.getElementById("password").value;
+
+  try {
+    await signInWithEmailAndPassword(auth, email, pass);
+  } catch (e) {
+    alert("Login failed");
+  }
+};
+
+// LOGOUT
+window.logout = function() {
+  signOut(auth);
+};
+
+// SESSION CHECK
+onAuthStateChanged(auth, (user) => {
+  if (user) {
+    document.getElementById("loginBox").style.display = "none";
+    document.getElementById("app").style.display = "block";
+  } else {
+    document.getElementById("loginBox").style.display = "block";
+    document.getElementById("app").style.display = "none";
+  }
+});
+
+// ADD Student Function
+window.addStudents = async function() {
+  try {
+    // HTML-এর id অনুযায়ী সিলেক্ট করা হয়েছে
+    const nameInput = document.getElementById('name');
+    const classInput = document.getElementById('class');
+    const rollInput = document.getElementById('roll');
+    const marksInput = document.getElementById('marks');
+    const attendanceInput = document.getElementById('attendance');
+
+    // ভ্যালু সংগ্রহ
+    const name = nameInput.value;
+    const cls = classInput.value;
+    const roll = rollInput.value;
+    const marks = marksInput.value;
+    const attendance = attendanceInput.value;
+
+    if (!name || !cls || !roll) {
+      alert("Please fill Name, Class, and Roll");
+      return;
+    }
+
+    // ফায়ারবেসে ডেটা পাঠানো
+    await addDoc(collection(db, "students"), {
+      name, 
+      class: cls, 
+      roll, 
+      marks, 
+      attendance
+    });
+
+    alert("Student added successfully!");
+
+    // ফর্ম ক্লিয়ার করা
+    nameInput.value = "";
+    classInput.value = "";
+    rollInput.value = "";
+    marksInput.value = "";
+
+  } catch (error) {
+    console.error("Error: ", error);
+    alert("Error: " + error.message);
+  }
+};
+
+
+// AUTO LOAD
+onSnapshot(collection(db, "students"), (snapshot) => {
+  allData = [];
+  snapshot.forEach(docSnap => {
+    allData.push({ id: docSnap.id, ...docSnap.data() });
+  });
+  render(allData);
+});
+
+// RENDER
+function render(data) {
+  const table = document.getElementById("table");
+  table.innerHTML = "";
+
+  let total = data.length;
+  let sum = 0;
+
+  data.forEach(d => {
+    sum += Number(d.marks || 0);
+
+    table.innerHTML += `
+      <tr>
+        <td>${d.name}</td>
+        <td>${d.class}</td>
+        <td>${d.roll}</td>
+        <td>${d.marks}</td>
+        <td>${d.attendance}</td>
+        <td>
+          <button onclick="del('${d.id}')">Delete</button>
+          <button onclick="edit('${d.id}','${d.name}','${d.class}','${d.roll}','${d.marks}','${d.attendance}')">Edit</button>
+        </td>
+      </tr>
+    `;
+  });
+
+  document.getElementById("total").innerText = total;
+  document.getElementById("avg").innerText = total ? (sum / total).toFixed(2) : 0;
+}
+
+// DELETE
+window.del = async function(id) {
+  await deleteDoc(doc(db, "students", id));
+};
+
+// EDIT
+window.edit = async function(id, name, cls, roll, marks, attendance) {
+  const newName = prompt("Name", name);
+  const newMarks = prompt("Marks", marks);
+
+  await updateDoc(doc(db, "students", id), {
+    name: newName,
+    marks: newMarks
+  });
+};
+
+// SEARCH
+window.filterData = function() {
+  const val = document.getElementById("search").value.toLowerCase();
+  const filtered = allData.filter(d => d.name.toLowerCase().includes(val));
+  render(filtered);
+};
+
+// CSV
+window.exportCSV = function() {
+  let csv = "Name,Class,Roll,Marks,Attendance\n";
+  allData.forEach(d => {
+    csv += `${d.name},${d.class},${d.roll},${d.marks},${d.attendance}\n`;
+  });
+
+  const blob = new Blob([csv], { type: "text/csv" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "students.csv";
+  a.click();
+};
+
+// PDF
+window.exportPDF = async function() {
+  const { jsPDF } = await import("https://cdn.jsdelivr.net/npm/jspdf@2.5.1/+esm");
+  const doc = new jsPDF();
+
+  doc.text("Student Report", 10, 10);
+
+  allData.forEach((d, i) => {
+    doc.text(`${i+1}. ${d.name} | ${d.marks}`, 10, 20 + i*10);
+  });
+
+  doc.save("report.pdf");
+};
+
+</script>
+
+</body>
+</html>

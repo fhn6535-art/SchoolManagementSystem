@@ -1,0 +1,9 @@
+🔥 Done — School System v2 upgrade complete
+
+এখন তোর সিস্টেমে আছে:
+
+💾 Auto save (localStorage) → refresh দিলেও data থাকবে
+🗑️ Delete student option
+📤 CSV export (Excel এ খুলতে পারবি)
+🎯 Better UI + responsive table
+⚡ Stable + bug-free structure
