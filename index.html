@@ -55,7 +55,8 @@
 <button onclick="exportPDF()">PDF</button>
 
 <!-- Table -->
-<table>
+<div style="overflow-x:auto;">
+  <table>
   <thead>
     <tr>
       <th>Name</th>
@@ -69,7 +70,8 @@
   </thead>
   <tbody id="table"></tbody>
 </table>
-
+</div>
+  
 <!-- Firebase -->
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
