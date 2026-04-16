@@ -33,7 +33,7 @@
 <!-- Form -->
 <input id="name" placeholder="Name">
 <input id="class" placeholder="Class">
- <input id="section" placeholder="Section">
+<input id="section" placeholder="Section">
 <input id="roll" placeholder="Roll">
 <input id="marks" type="number" placeholder="Marks">
 
@@ -123,6 +123,7 @@ window.addStudents = async function() {
     // HTML-এর id অনুযায়ী সিলেক্ট করা হয়েছে
     const nameInput = document.getElementById('name');
     const classInput = document.getElementById('class');
+    const sectionInput = document.getElementById('section');
     const rollInput = document.getElementById('roll');
     const marksInput = document.getElementById('marks');
     const attendanceInput = document.getElementById('attendance');
@@ -130,19 +131,21 @@ window.addStudents = async function() {
     // ভ্যালু সংগ্রহ
     const name = nameInput.value;
     const cls = classInput.value;
+    const section = sectionInput.value;
     const roll = rollInput.value;
     const marks = marksInput.value;
     const attendance = attendanceInput.value;
 
-    if (!name || !cls || !roll) {
-      alert("Please fill Name, Class, and Roll");
+    if (!name || !cls || !section|| !roll) {
+      alert("Please fill Name, Class, Section and Roll");
       return;
     }
 
     // ফায়ারবেসে ডেটা পাঠানো
     await addDoc(collection(db, "students"), {
       name, 
-      class: cls, 
+      class: cls,
+      section,
       roll, 
       marks, 
       attendance
@@ -153,6 +156,7 @@ window.addStudents = async function() {
     // ফর্ম ক্লিয়ার করা
     nameInput.value = "";
     classInput.value = "";
+    sectionInput.value = "";
     rollInput.value = "";
     marksInput.value = "";
 
@@ -187,12 +191,13 @@ function render(data) {
       <tr>
         <td>${d.name}</td>
         <td>${d.class}</td>
+        <td>${d.section}</td>
         <td>${d.roll}</td>
         <td>${d.marks}</td>
         <td>${d.attendance}</td>
         <td>
           <button onclick="del('${d.id}')">Delete</button>
-          <button onclick="edit('${d.id}','${d.name}','${d.class}','${d.roll}','${d.marks}','${d.attendance}')">Edit</button>
+          <button onclick="edit('${d.id}','${d.name}','${d.class}','${d.section}','${d.roll}','${d.marks}','${d.attendance}')">Edit</button>
         </td>
       </tr>
     `;
@@ -208,7 +213,7 @@ window.del = async function(id) {
 };
 
 // EDIT
-window.edit = async function(id, name, cls, roll, marks, attendance) {
+window.edit = async function(id, name, cls, section, roll, marks, attendance) {
   const newName = prompt("Name", name);
   const newMarks = prompt("Marks", marks);
 
@@ -227,9 +232,9 @@ window.filterData = function() {
 
 // CSV
 window.exportCSV = function() {
-  let csv = "Name,Class,Roll,Marks,Attendance\n";
+  let csv = "Name,Class,Section,Roll,Marks,Attendance\n";
   allData.forEach(d => {
-    csv += `${d.name},${d.class},${d.roll},${d.marks},${d.attendance}\n`;
+    csv += `${d.name},${d.class},${d.section},${d.roll},${d.marks},${d.attendance}\n`;
   });
 
   const blob = new Blob([csv], { type: "text/csv" });
