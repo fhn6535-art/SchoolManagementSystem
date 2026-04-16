@@ -70,8 +70,11 @@ th {
 <br>
 
 <!-- Search -->
+<input id="filterClass" placeholder="Filter by Class" onkeyup="applyFilters()">
+<input id="filterSection" placeholder="Filter by Section" onkeyup="applyFilters()">
 <input id="search" placeholder="Search by name..." onkeyup="filterData()">
-
+<input id="search" placeholder="Search by name..." onkeyup="applyFilters()">
+    
 <!-- Export -->
 <button onclick="exportCSV()">CSV</button>
 <button onclick="exportPDF()">PDF</button>
@@ -159,7 +162,8 @@ window.addStudents = async function() {
     const roll = rollInput.value;
     const marks = marksInput.value;
     const attendance = attendanceInput.value;
-
+    section: sectionInput.value
+    
     if (!name || !cls || !section|| !roll) {
       alert("Please fill Name, Class, Section and Roll");
       return;
@@ -249,7 +253,7 @@ window.edit = async function(id, name, cls, section, roll, marks, attendance) {
 
 // SEARCH
 window.filterData = function() {
-  const val = document.getElementById("search").value.toLowerCase();
+   const val = document.getElementById("search").value.toLowerCase();
   const filtered = allData.filter(d => d.name.toLowerCase().includes(val));
   render(filtered);
 };
@@ -281,7 +285,22 @@ window.exportPDF = async function() {
 
   doc.save("report.pdf");
 };
+window.applyFilters = function() {
+  const search = document.getElementById("search").value.toLowerCase();
+  const classFilter = document.getElementById("filterClass").value.toLowerCase();
+  const sectionFilter = document.getElementById("filterSection").value.toLowerCase();
 
+  const filtered = allData.filter(d => {
+    return (
+      (d.name.toLowerCase().includes(search)) &&
+      (classFilter? d.class.toLowerCase().includes(classFilter) : true) &&
+      (sectionFilter? d.section?.toLowerCase().includes(sectionFilter) : true)
+    );
+  });
+
+  render(filtered);
+};
+  
 </script>
 
 </body>
