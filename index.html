@@ -170,14 +170,14 @@ window.addStudents = async function() {
     }
 
     // ফায়ারবেসে ডেটা পাঠানো
-    await addDoc(collection(db, "students"), {
-      name, 
-      class: cls,
-      section,
-      roll, 
-      marks, 
-      attendance
-    });
+ await addDoc(collection(db, "students"), {
+  name: name.value,
+  className: document.getElementById("class").value,
+  section: section.value,
+  roll: roll.value,
+  marks: marks.value,
+  attendance: attendance.value
+});
 
     alert("Student added successfully!");
 
