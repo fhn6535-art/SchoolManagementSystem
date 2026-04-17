@@ -218,14 +218,14 @@ function render(data) {
     table.innerHTML += `
       <tr>
         <td>${d.name}</td>
-        <td>${d.class}</td>
+        <td>${d.className}</td>
         <td>${d.section}</td>
         <td>${d.roll}</td>
         <td>${d.marks}</td>
         <td>${d.attendance}</td>
         <td>
           <button onclick="del('${d.id}')">Delete</button>
-          <button onclick="edit('${d.id}','${d.name}','${d.class}','${d.section}','${d.roll}','${d.marks}','${d.attendance}')">Edit</button>
+          <button onclick="edit('${d.id}','${d.name}','${d.className}','${d.section}','${d.roll}','${d.marks}','${d.attendance}')">Edit</button>
         </td>
       </tr>
     `;
@@ -262,7 +262,7 @@ window.filterData = function() {
 window.exportCSV = function() {
   let csv = "Name,Class,Section,Roll,Marks,Attendance\n";
   allData.forEach(d => {
-    csv += `${d.name},${d.class},${d.section},${d.roll},${d.marks},${d.attendance}\n`;
+    csv += `${d.name},${d.className},${d.section},${d.roll},${d.marks},${d.attendance}\n`;
   });
 
   const blob = new Blob([csv], { type: "text/csv" });
@@ -293,7 +293,7 @@ window.applyFilters = function() {
   const filtered = allData.filter(d => {
     return (
       (d.name.toLowerCase().includes(search)) &&
-      (classFilter? d.class.toLowerCase().includes(classFilter) : true) &&
+      (classFilter? d.className.toLowerCase().includes(classFilter) : true) &&
       (sectionFilter? d.section?.toLowerCase().includes(sectionFilter) : true)
     );
   });
