@@ -4,43 +4,41 @@
   <title>FH New Admin Panel</title>
 
   <style>
-    body { margin:0; font-family: Arial; background:#f4f6f9; }
+  body {
+    margin: 0;
+    font-family: Arial;
+    background: #f4f6f9;
+    height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
 
-    input, select, button {
-      padding:8px; margin:5px;
-    }
+  #loginBox {
+    background: white;
+    padding: 30px;
+    border-radius: 10px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    text-align: center;
+    width: 300px;
+  }
 
-    button {
-      background:#3498db;
-      color:white;
-      border:none;
-      cursor:pointer;
-      border-radius:5px;
-    }
+  input, select, button {
+    width: 100%;
+    padding: 10px;
+    margin: 8px 0;
+    box-sizing: border-box;
+  }
 
-    table {
-      width:100%;
-      border-collapse: collapse;
-      margin-top:15px;
-      background:white;
-    }
+  button {
+    background: #3498db;
+    color: white;
+    border: none;
+    cursor: pointer;
+    border-radius: 5px;
+  }
+</style>
 
-    th, td {
-      border:1px solid #ddd;
-      padding:8px;
-      text-align:center;
-    }
-
-    th { background:#eee; }
-
-    .card {
-      background:white;
-      padding:20px;
-      border-radius:10px;
-      box-shadow:0 2px 5px rgba(0,0,0,0.1);
-      flex:1;
-    }
-  </style>
 </head>
 
 <body>
