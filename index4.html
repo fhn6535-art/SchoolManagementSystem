@@ -628,47 +628,46 @@
 
     // RENDER
     function render(data) {
-      const table = document.getElementById("table");
-      const total = document.getElementById("total");
-      const avg = document.getElementById("avg");
+  const table = document.getElementById("table");
+  const total = document.getElementById("total");
+  const avg = document.getElementById("avg");
 
-      table.innerHTML = "";
-      let sum = 0;
+  table.innerHTML = "";
+  let sum = 0;
 
-      data.forEach(d => {
-        sum += Number(d.marks || 0);
+  data.forEach(d => {
+    sum += Number(d.marks || 0);
 
-        let actionButtons = "No Access";
+    let actionButtons = "No Access";
 
-        if (currentRole === "admin") {
-          actionButtons = `
-            <button class="actionBtn deleteBtn" onclick="delStudent('${d.id}')">Delete</button>
-            <button class="actionBtn editBtn" onclick="editStudent('${d.id}','${escapeHtmlAttr(d.name || "")}','${escapeHtmlAttr(d.className || "")}','${escapeHtmlAttr(d.section || "")}','${escapeHtmlAttr(d.roll || "")}','${escapeHtmlAttr(d.studentEmail || "")}','${escapeHtmlAttr(d.marks || "")}','${escapeHtmlAttr(d.attendance || "")}')">Edit</button>
-          `;
-        } else if (currentRole === "teacher") {
-          actionButtons = `
-            <button class="actionBtn editBtn" onclick="editStudent('${d.id}','${escapeHtmlAttr(d.name || "")}','${escapeHtmlAttr(d.className || "")}','${escapeHtmlAttr(d.section || "")}','${escapeHtmlAttr(d.roll || "")}','${escapeHtmlAttr(d.studentEmail || "")}','${escapeHtmlAttr(d.marks || "")}','${escapeHtmlAttr(d.attendance || "")}')">Edit</button>
-          `;
-        }
-
-        table.innerHTML += `
-          <tr>
-            <td>${escapeHtml(d.name || "")}</td>
-            <td>${escapeHtml(d.className || "")}</td>
-            <td>${escapeHtml(d.section || "")}</td>
-            <td>${escapeHtml(d.roll || "")}</td>
-            <td>${escapeHtml(d.studentEmail || "")}</td>
-            <td>${escapeHtml(d.marks || "")}</td>
-            <td>${escapeHtml(d.attendance || "")}</td>
-            <td>${actionButtons}</td>
-          </tr>
-        `;
-      });
-
-      total.innerText = data.length;
-      avg.innerText = data.length ? (sum / data.length).toFixed(2) : 0;
+    if (currentRole === "admin") {
+      actionButtons = `
+        <button class="actionBtn deleteBtn" onclick="delStudent('${d.id}')">Delete</button>
+        <button class="actionBtn editBtn" onclick="editStudent('${d.id}','${escapeHtmlAttr(d.name || "")}','${escapeHtmlAttr(d.className || "")}','${escapeHtmlAttr(d.section || "")}','${escapeHtmlAttr(d.roll || "")}','${escapeHtmlAttr(d.studentEmail || "")}','${escapeHtmlAttr(d.marks || "")}','${escapeHtmlAttr(d.attendance || "")}')">Edit</button>
+      `;
+    } else if (currentRole === "teacher") {
+      actionButtons = `
+        <button class="actionBtn editBtn" onclick="editStudent('${d.id}','${escapeHtmlAttr(d.name || "")}','${escapeHtmlAttr(d.className || "")}','${escapeHtmlAttr(d.section || "")}','${escapeHtmlAttr(d.roll || "")}','${escapeHtmlAttr(d.studentEmail || "")}','${escapeHtmlAttr(d.marks || "")}','${escapeHtmlAttr(d.attendance || "")}')">Edit Marks</button>
+      `;
     }
 
+    table.innerHTML += `
+      <tr>
+        <td>${escapeHtml(d.name || "")}</td>
+        <td>${escapeHtml(d.className || "")}</td>
+        <td>${escapeHtml(d.section || "")}</td>
+        <td>${escapeHtml(d.roll || "")}</td>
+        <td>${escapeHtml(d.studentEmail || "")}</td>
+        <td>${escapeHtml(d.marks || "")}</td>
+        <td>${escapeHtml(d.attendance || "")}</td>
+        <td>${actionButtons}</td>
+      </tr>
+    `;
+  });
+
+  total.innerText = data.length;
+  avg.innerText = data.length ? (sum / data.length).toFixed(2) : 0;
+}
     // DELETE
     window.delStudent = async function (id) {
       if (currentRole !== "admin") {
@@ -687,12 +686,14 @@
     };
 
     // EDIT
-    window.editStudent = async function (id, name, className, section, roll, studentEmail, marks, attendance) {
-      if (currentRole !== "admin" && currentRole !== "teacher") {
-        alert("No permission");
-        return;
-      }
+   window.editStudent = async function (id, name, className, section, roll, studentEmail, marks, attendance) {
+  if (currentRole !== "admin" && currentRole !== "teacher") {
+    alert("No permission");
+    return;
+  }
 
+  try {
+    if (currentRole === "admin") {
       const newName = prompt("Name", name);
       if (newName === null) return;
 
@@ -714,21 +715,34 @@
       const newAttendance = prompt("Attendance (Present / Absent / Late)", attendance);
       if (newAttendance === null) return;
 
-      try {
-        await updateDoc(doc(db, "students", id), {
-          name: newName.trim(),
-          className: newClass.trim(),
-          section: newSection.trim(),
-          roll: newRoll.trim(),
-          studentEmail: newStudentEmail.trim(),
-          marks: newMarks.trim(),
-          attendance: newAttendance.trim(),
-          studentId: newStudentEmail.trim()
-        });
-      } catch (e) {
-        alert("Update failed: " + e.message);
-      }
-    };
+      await updateDoc(doc(db, "students", id), {
+        name: newName.trim(),
+        className: newClass.trim(),
+        section: newSection.trim(),
+        roll: newRoll.trim(),
+        studentEmail: newStudentEmail.trim(),
+        marks: newMarks.trim(),
+        attendance: newAttendance.trim(),
+        studentId: newStudentEmail.trim()
+      });
+    }
+
+    else if (currentRole === "teacher") {
+      const newMarks = prompt("Marks", marks);
+      if (newMarks === null) return;
+
+      const newAttendance = prompt("Attendance (Present / Absent / Late)", attendance);
+      if (newAttendance === null) return;
+
+      await updateDoc(doc(db, "students", id), {
+        marks: newMarks.trim(),
+        attendance: newAttendance.trim()
+      });
+    }
+  } catch (e) {
+    alert("Update failed: " + e.message);
+  }
+};
 
     // CSV DOWNLOAD
     window.downloadCSV = function () {
