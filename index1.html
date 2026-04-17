@@ -349,14 +349,18 @@
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
     import {
-      getFirestore,
-      collection,
-      addDoc,
-      onSnapshot,
-      deleteDoc,
-      doc,
-      updateDoc
-    } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+     getFirestore,
+     collection,
+     addDoc,
+     onSnapshot,
+     deleteDoc,
+     doc,
+     updateDoc,
+     getDocs,
+     query,
+     where
+   }
+   from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
     import {
       getAuth,
@@ -393,21 +397,94 @@
     window.logout = () => signOut(auth);
 
     // SESSION
-    onAuthStateChanged(auth, (user) => {
-      if (user) {
-        const name = user.email.split("@")[0];
+    onAuthStateChanged(auth, async (user) => {
 
-        document.getElementById("welcomeText").innerText = "Welcome, " + name + " 👋";
+  if (user) {
 
-        loginBox.style.display = "none";
-        app.style.display = "block";
+    const userEmail = user.email;
 
-        showPage("dashboard");
-      } else {
-        loginBox.style.display = "flex";
-        app.style.display = "none";
-      }
-    });
+    const q = query(
+      collection(db, "users"),
+      where("email", "==", userEmail)
+    );
+
+    const snap = await getDocs(q);
+
+    if (snap.empty) {
+      alert("No role assigned");
+      signOut(auth);
+      return;
+    }
+
+    const userData = snap.docs[0].data();
+
+    const role = userData.role;
+    const name = userData.name || user.email;
+
+    loginBox.style.display = "none";
+    app.style.display = "block";
+
+    // ADMIN
+    if (role === "admin") {
+
+      welcomeText.innerText =
+      "Welcome Admin 👑";
+
+      document.querySelector(".sidebar").innerHTML = `
+      <h2>👑 Admin Panel</h2>
+      <hr>
+      <p onclick="showPage('dashboard')">📊 Dashboard</p>
+      <p onclick="showPage('students')">👨‍🎓 Students</p>
+      <p onclick="logout()">🚪 Logout</p>
+      `;
+
+      showPage("dashboard");
+    }
+
+    // TEACHER
+    if (role === "teacher") {
+
+      welcomeText.innerText =
+      "Welcome ${name} 👨‍🏫";
+
+      document.querySelector(".sidebar").innerHTML = `
+      <h2>👨‍🏫 Teacher Panel</h2>
+      <hr>
+      <p onclick="showPage('students')">👨‍🎓 Students</p>
+      <p onclick="logout()">🚪 Logout</p>
+      `;
+
+      showPage("students");
+    }
+
+    // STUDENT
+    if (role === "student") {
+
+      welcomeText.innerText =
+      "Welcome ${name} 🎓";
+
+      document.querySelector(".sidebar").innerHTML = `
+      <h2>🎓 Student Panel</h2>
+      <hr>
+      <p onclick="showPage('dashboard')">📄 My Result</p>
+      <p onclick="logout()">🚪 Logout</p>
+      `;
+
+      showPage("dashboard");
+
+      document.getElementById("studentsPage").style.display = "none";
+    }
+
+  }
+
+  else {
+
+    loginBox.style.display = "flex";
+    app.style.display = "none";
+
+  }
+
+});
 
     // PAGE SWITCH
     window.showPage = function (page) {
