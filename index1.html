@@ -1,99 +1,134 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>FH New Admin Panel</title>
+<title>FH New Admin Panel</title>
 
-  <style>
-body {
-  margin: 0;
-  font-family: Arial;
-  background: #f4f6f9;
-  height: 100vh;
+<style>
+body{
+  margin:0;
+  font-family:Arial;
+  background:#f4f6f9;
 }
 
- #loginBox {
-  height: 100vh;
-  display: flex;
-  justify-content: center;
-  align-items: center;
+input, select, button{
+  padding:8px;
+  margin:5px;
 }
 
-  input, select, button {
-    width: 100%;
-    padding: 10px;
-    margin: 8px 0;
-    box-sizing: border-box;
-  }
-
-  button {
-    background: #3498db;
-    color: white;
-    border: none;
-    cursor: pointer;
-    border-radius: 5px;
-  }
-
-  /*🔥 Step 4: loginBox styling fix*/
-  
-#loginBox {
-  display: none; /* default hidden না চাইলে JS handle করবে */
-  background: transparent;
+button{
+  background:#3498db;
+  color:white;
+  border:none;
+  cursor:pointer;
+  border-radius:5px;
 }
-#loginBox > div {
-  background: white;
-  padding: 30px;
-  border-radius: 10px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-  width: 300px;
-  text-align: center;
+
+table{
+  width:100%;
+  border-collapse:collapse;
+  margin-top:15px;
+  background:white;
+}
+
+th, td{
+  border:1px solid #ddd;
+  padding:8px;
+  text-align:center;
+}
+
+th{
+  background:#eee;
+}
+
+.card{
+  background:white;
+  padding:20px;
+  border-radius:10px;
+  box-shadow:0 2px 5px rgba(0,0,0,0.1);
+  flex:1;
+}
+
+/* LOGIN CENTER */
+#loginBox{
+  height:100vh;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+}
+
+#loginBox .loginCard{
+  background:white;
+  padding:30px;
+  border-radius:12px;
+  box-shadow:0 4px 15px rgba(0,0,0,0.1);
+  width:320px;
+  text-align:center;
+}
+
+#loginBox input{
+  width:90%;
+  padding:10px;
+}
+
+#loginBox button{
+  width:95%;
+  padding:10px;
 }
 </style>
-
 </head>
 
 <body>
 
-<!-- 🔐 LOGIN -->
+<!-- LOGIN -->
 <div id="loginBox">
-  <div>
+  <div class="loginCard">
     <h2 id="userTitle">🔐 Login</h2>
 
     <input id="email" placeholder="Email"><br><br>
     <input id="password" type="password" placeholder="Password"><br><br>
+
     <button onclick="login()">Login</button>
   </div>
 </div>
 
-<!-- 🔥 ADMIN PANEL -->
+<!-- ADMIN PANEL -->
 <div id="app" style="display:none;">
 
 <div style="display:flex; height:100vh;">
 
-<!-- 🔵 SIDEBAR -->
+<!-- SIDEBAR -->
 <div style="width:220px; background:#2c3e50; color:white; padding:15px;">
-  <h2>🎓 FH Admin</h2>
-  <hr>
+<h2>🎓 FH Admin</h2>
+<hr>
 
-  <p onclick="showPage('dashboard')" style="cursor:pointer;">📊 Dashboard</p>
-  <p onclick="showPage('students')" style="cursor:pointer;">👨‍🎓 Students</p>
-  <p onclick="logout()" style="cursor:pointer;">🚪 Logout</p>
+<p onclick="showPage('dashboard')" style="cursor:pointer;">📊 Dashboard</p>
+<p onclick="showPage('students')" style="cursor:pointer;">👨‍🎓 Students</p>
+<p onclick="logout()" style="cursor:pointer;">🚪 Logout</p>
 </div>
 
-<!-- 🟢 MAIN -->
+<!-- MAIN -->
 <div style="flex:1; padding:20px; overflow:auto;">
 
 <h2 id="welcomeText">Welcome</h2>
 
 <!-- DASHBOARD -->
 <div id="dashboardPage">
-  <div style="display:flex; gap:20px;">
-    <div class="card">Total Students: <b id="total">0</b></div>
-    <div class="card">Avg Marks: <b id="avg">0</b></div>
-  </div>
+<div style="display:flex; gap:20px;">
+<div class="card">Total Students: <b id="total">0</b></div>
+<div class="card">Avg Marks: <b id="avg">0</b></div>
+</div>
 </div>
 
 <!-- STUDENTS -->
 <div id="studentsPage" style="display:none;">
+Students Page
+</div>
+
+</div>
+</div>
+</div>
+
+</body>
 
 <input id="name" placeholder="Name">
 <input id="class" placeholder="Class">
