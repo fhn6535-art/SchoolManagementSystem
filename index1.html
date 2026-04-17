@@ -4,24 +4,19 @@
   <title>FH New Admin Panel</title>
 
   <style>
-  body {
-    margin: 0;
-    font-family: Arial;
-    background: #f4f6f9;
-    height: 100vh;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-  }
+body {
+  margin: 0;
+  font-family: Arial;
+  background: #f4f6f9;
+  height: 100vh;
+}
 
-  #loginBox {
-    background: white;
-    padding: 30px;
-    border-radius: 10px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-    text-align: center;
-    width: 300px;
-  }
+ #loginBox {
+  height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
 
   input, select, button {
     width: 100%;
@@ -37,6 +32,21 @@
     cursor: pointer;
     border-radius: 5px;
   }
+
+  /*🔥 Step 4: loginBox styling fix*/
+  
+#loginBox {
+  display: none; /* default hidden না চাইলে JS handle করবে */
+  background: transparent;
+}
+#loginBox > div {
+  background: white;
+  padding: 30px;
+  border-radius: 10px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  width: 300px;
+  text-align: center;
+}
 </style>
 
 </head>
@@ -44,12 +54,14 @@
 <body>
 
 <!-- 🔐 LOGIN -->
-<div id="loginBox" style="padding:30px;">
-  <h2 id="userTitle">🔐 Login</h2>
+<div id="loginBox">
+  <div>
+    <h2 id="userTitle">🔐 Login</h2>
 
-  <input id="email" placeholder="Email"><br><br>
-  <input id="password" type="password" placeholder="Password"><br><br>
-  <button onclick="login()">Login</button>
+    <input id="email" placeholder="Email"><br><br>
+    <input id="password" type="password" placeholder="Password"><br><br>
+    <button onclick="login()">Login</button>
+  </div>
 </div>
 
 <!-- 🔥 ADMIN PANEL -->
