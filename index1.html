@@ -318,9 +318,11 @@
             <input id="filterClass" placeholder="Class filter" onkeyup="applyFilters()">
             <input id="filterSection" placeholder="Section filter" onkeyup="applyFilters()">
           </div>
-<div style="margin: 10px 0 15px 0;">
-  <button onclick="downloadCSV()">⬇ Download CSV</button>
-</div>
+
+          <div style="margin: 10px 0 15px 0;">
+           <button onclick="downloadCSV()">⬇ Download CSV</button>
+        </div>
+
           <div class="tableWrap">
             <table>
               <thead>
@@ -522,6 +524,39 @@
         marks: m
       });
     };
+
+    window.downloadCSV = function () {
+  if (!allData.length) {
+    alert("No student data found");
+    return;
+  }
+
+  let csv = "Name,Class,Section,Roll,Marks,Attendance\n";
+
+  allData.forEach((student) => {
+    const row = [
+      `"${student.name || ""}"`,
+      `"${student.className || ""}"`,
+      `"${student.section || ""}"`,
+      `"${student.roll || ""}"`,
+      `"${student.marks || ""}"`,
+      `"${student.attendance || ""}"`
+    ];
+    csv += row.join(",") + "\n";
+  });
+
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "students_data.csv";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+
+  URL.revokeObjectURL(url);
+};
   </script>
 
 </body>
