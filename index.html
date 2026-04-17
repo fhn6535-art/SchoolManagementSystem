@@ -135,6 +135,7 @@ window.logout = function() {
 };
 
 // SESSION CHECK
+<<<<<<< HEAD
 
 const loginBox = document.getElementById("loginBox");
 const app = document.getElementById("app");
@@ -157,6 +158,19 @@ onAuthStateChanged(auth, async (user) => {
     } catch (e) {
       console.error(e);
     }
+=======
+onAuthStateChanged(auth, async (user) => {
+  if (user) {
+
+    const ref = doc(db, "users", user.email);
+    const snap = await getDoc(ref);
+
+    currentRole = snap.exists() ? snap.data().role : "teacher";
+
+    // 🔥 name show
+    const name = snap.exists() ? snap.data().name : user.email;
+document.getElementById("userTitle").innerText = "Welcome, " + name + " 👋";
+>>>>>>> 44a41eb10d8631be222171ea8b15c9eaec5beec7
 
     loginBox.style.display = "none";
     app.style.display = "block";
@@ -197,8 +211,13 @@ window.addStudents = async function() {
  await addDoc(collection(db, "students"), {
   name: name,
   className: document.getElementById("class").value,
+<<<<<<< HEAD
   section: section,
   roll: roll,
+=======
+  section: section.value,
+  roll: roll.value,
+>>>>>>> 44a41eb10d8631be222171ea8b15c9eaec5beec7
   marks: marks.value,
   attendance: attendance.value
 });
