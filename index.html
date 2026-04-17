@@ -33,7 +33,7 @@ th {
 </head>
 <body>
 
-<h2>🔐 Login</h2>
+<h2 id="userTitle">🔐 Login</h2>
 
 <div id="loginBox">
   <input id="email" placeholder="Email"><br><br>
@@ -134,13 +134,26 @@ window.logout = function() {
 };
 
 // SESSION CHECK
-onAuthStateChanged(auth, (user) => {
+onAuthStateChanged(auth, async (user) => {
   if (user) {
-    document.getElementById("loginBox").style.display = "none";
-    document.getElementById("app").style.display = "block";
+
+    const ref = doc(db, "users", user.email);
+    const snap = await getDoc(ref);
+
+    currentRole = snap.exists() ? snap.data().role : "teacher";
+
+    // 🔥 name show
+    const name = user.email.split("@")[0];
+    document.getElementById("userTitle").innerText = "Welcome, " + name + " 👋";
+
+    loginBox.style.display = "none";
+    app.style.display = "block";
+
   } else {
-    document.getElementById("loginBox").style.display = "block";
-    document.getElementById("app").style.display = "none";
+    document.getElementById("userTitle").innerText = "🔐 Login";
+
+    loginBox.style.display = "block";
+    app.style.display = "none";
   }
 });
 
