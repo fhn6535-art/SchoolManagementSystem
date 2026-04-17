@@ -1,0 +1,808 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>FH Secure School Panel</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #f4f6f9;
+      color: #2c3e50;
+    }
+
+    input, select, button {
+      padding: 10px 12px;
+      border-radius: 8px;
+      border: 1px solid #dcdfe6;
+      font-size: 14px;
+      outline: none;
+    }
+
+    input:focus, select:focus {
+      border-color: #3498db;
+      box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.12);
+    }
+
+    button {
+      background: #3498db;
+      color: white;
+      border: none;
+      cursor: pointer;
+      transition: 0.2s ease;
+      font-weight: 600;
+    }
+
+    button:hover {
+      background: #2980b9;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: white;
+    }
+
+    th, td {
+      border: 1px solid #eef1f4;
+      padding: 12px;
+      text-align: center;
+    }
+
+    th {
+      background: #f8fafc;
+      font-weight: 700;
+    }
+
+    tr:hover {
+      background: #f9fbfd;
+    }
+
+    .card {
+      background: white;
+      padding: 22px;
+      border-radius: 14px;
+      box-shadow: 0 4px 18px rgba(0,0,0,0.06);
+      flex: 1;
+      min-width: 220px;
+    }
+
+    #loginBox {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: linear-gradient(135deg, #eef4ff, #f7f9fc);
+      z-index: 999;
+    }
+
+    #loginBox .loginCard {
+      width: 360px;
+      background: white;
+      padding: 32px 28px;
+      border-radius: 18px;
+      box-shadow: 0 10px 35px rgba(0,0,0,0.10);
+      text-align: center;
+    }
+
+    #loginBox h2 {
+      margin-top: 0;
+      margin-bottom: 22px;
+      color: #2c3e50;
+    }
+
+    #loginBox .loginCard input {
+      width: 100%;
+      margin: 8px 0;
+      padding: 12px;
+    }
+
+    #loginBox .loginCard button {
+      width: 100%;
+      margin-top: 10px;
+      padding: 12px;
+      border-radius: 10px;
+    }
+
+    #app {
+      min-height: 100vh;
+    }
+
+    .layout {
+      display: flex;
+      min-height: 100vh;
+    }
+
+    .sidebar {
+      width: 240px;
+      background: linear-gradient(180deg, #243447, #1b2838);
+      color: white;
+      padding: 22px 16px;
+      box-shadow: 2px 0 12px rgba(0,0,0,0.08);
+    }
+
+    .sidebar h2 {
+      margin-top: 0;
+      margin-bottom: 16px;
+      font-size: 24px;
+    }
+
+    .sidebar hr {
+      border: none;
+      border-top: 1px solid rgba(255,255,255,0.12);
+      margin: 14px 0 20px;
+    }
+
+    .sidebar p {
+      margin: 10px 0;
+      padding: 12px 14px;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: 0.2s ease;
+    }
+
+    .sidebar p:hover {
+      background: rgba(255,255,255,0.10);
+    }
+
+    .main {
+      flex: 1;
+      padding: 24px;
+      overflow: auto;
+    }
+
+    #welcomeText {
+      margin-top: 0;
+      margin-bottom: 22px;
+      font-size: 28px;
+    }
+
+    .statsRow {
+      display: flex;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+
+    .formRow,
+    .filterRow {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 14px;
+    }
+
+    .formRow input,
+    .formRow select,
+    .formRow button,
+    .filterRow input {
+      margin: 0;
+    }
+
+    .tableWrap {
+      overflow-x: auto;
+      background: white;
+      border-radius: 14px;
+      box-shadow: 0 4px 18px rgba(0,0,0,0.05);
+      overflow: hidden;
+      margin-top: 10px;
+    }
+
+    .actionBtn {
+      padding: 8px 14px;
+      border-radius: 8px;
+      font-size: 13px;
+      margin: 2px;
+    }
+
+    .deleteBtn {
+      background: #e74c3c;
+    }
+
+    .deleteBtn:hover {
+      background: #c0392b;
+    }
+
+    .editBtn {
+      background: #27ae60;
+    }
+
+    .editBtn:hover {
+      background: #1f8a4d;
+    }
+
+    .muted {
+      color: #6b7280;
+      font-size: 13px;
+    }
+
+    @media (max-width: 768px) {
+      .layout {
+        flex-direction: column;
+      }
+
+      .sidebar {
+        width: 100%;
+      }
+
+      .main {
+        padding: 16px;
+      }
+
+      #welcomeText {
+        font-size: 22px;
+      }
+
+      .statsRow {
+        flex-direction: column;
+      }
+
+      .card {
+        min-width: 100%;
+      }
+
+      .formRow input,
+      .formRow select,
+      .formRow button,
+      .filterRow input {
+        width: 100%;
+      }
+
+      #loginBox .loginCard {
+        width: 92%;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- LOGIN -->
+  <div id="loginBox">
+    <div class="loginCard">
+      <h2>🔐 Login</h2>
+      <input id="email" placeholder="Email">
+      <input id="password" type="password" placeholder="Password">
+      <button onclick="login()">Login</button>
+      <p class="muted">Login role will be detected automatically</p>
+    </div>
+  </div>
+
+  <!-- APP -->
+  <div id="app" style="display:none;">
+    <div class="layout">
+
+      <!-- SIDEBAR -->
+      <div class="sidebar" id="sidebarMenu">
+        <h2>🎓 School Panel</h2>
+        <hr>
+        <p onclick="showPage('dashboard')">📊 Dashboard</p>
+        <p onclick="showPage('students')">👨‍🎓 Students</p>
+        <p onclick="logout()">🚪 Logout</p>
+      </div>
+
+      <!-- MAIN -->
+      <div class="main">
+        <h2 id="welcomeText">Welcome</h2>
+
+        <!-- DASHBOARD -->
+        <div id="dashboardPage">
+          <div class="statsRow">
+            <div class="card">Total Students: <b id="total">0</b></div>
+            <div class="card">Avg Marks: <b id="avg">0</b></div>
+          </div>
+        </div>
+
+        <!-- STUDENTS -->
+        <div id="studentsPage" style="display:none;">
+
+          <div id="studentFormArea" class="formRow">
+            <input id="name" placeholder="Name">
+            <input id="studentClass" placeholder="Class">
+            <input id="section" placeholder="Section">
+            <input id="roll" placeholder="Roll">
+            <input id="studentEmail" placeholder="Student Email">
+            <input id="marks" type="number" placeholder="Marks">
+
+            <select id="attendance">
+              <option>Present</option>
+              <option>Absent</option>
+              <option>Late</option>
+            </select>
+
+            <button onclick="addStudents()">Add</button>
+          </div>
+
+          <div class="filterRow">
+            <input id="search" placeholder="Search..." onkeyup="applyFilters()">
+            <input id="filterClass" placeholder="Class filter" onkeyup="applyFilters()">
+            <input id="filterSection" placeholder="Section filter" onkeyup="applyFilters()">
+          </div>
+
+          <div id="downloadArea" style="margin: 10px 0 15px 0;">
+            <button onclick="downloadCSV()">⬇ Download CSV</button>
+          </div>
+
+          <div class="tableWrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Class</th>
+                  <th>Section</th>
+                  <th>Roll</th>
+                  <th>Student Email</th>
+                  <th>Marks</th>
+                  <th>Attendance</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="table"></tbody>
+            </table>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import {
+      getFirestore,
+      collection,
+      addDoc,
+      onSnapshot,
+      deleteDoc,
+      doc,
+      updateDoc,
+      getDoc,
+      query,
+      where
+    } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+    import {
+      getAuth,
+      signInWithEmailAndPassword,
+      onAuthStateChanged,
+      signOut
+    } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyCOL08Us-2m5w7rznnwUGudTz-QOxyi1l4",
+      authDomain: "school-management-system-93aba.firebaseapp.com",
+      projectId: "school-management-system-93aba"
+    };
+
+    const appFirebase = initializeApp(firebaseConfig);
+    const db = getFirestore(appFirebase);
+    const auth = getAuth(appFirebase);
+
+    let allData = [];
+    let currentRole = "";
+    let currentUserEmail = "";
+    let currentUserUid = "";
+    let currentStudentId = "";
+    let unsubscribeStudents = null;
+
+    const loginBox = document.getElementById("loginBox");
+    const app = document.getElementById("app");
+    const welcomeText = document.getElementById("welcomeText");
+    const sidebarMenu = document.getElementById("sidebarMenu");
+    const studentFormArea = document.getElementById("studentFormArea");
+    const downloadArea = document.getElementById("downloadArea");
+
+    // LOGIN
+    window.login = async function () {
+      const userEmail = document.getElementById("email").value.trim();
+      const userPassword = document.getElementById("password").value.trim();
+
+      if (!userEmail || !userPassword) {
+        alert("Enter email and password");
+        return;
+      }
+
+      try {
+        await signInWithEmailAndPassword(auth, userEmail, userPassword);
+      } catch (e) {
+        alert("Login failed: " + e.message);
+      }
+    };
+
+    // LOGOUT
+    window.logout = async function () {
+      try {
+        if (unsubscribeStudents) {
+          unsubscribeStudents();
+          unsubscribeStudents = null;
+        }
+        await signOut(auth);
+      } catch (e) {
+        alert("Logout failed: " + e.message);
+      }
+    };
+
+    // PAGE SWITCH
+    window.showPage = function (page) {
+      document.getElementById("dashboardPage").style.display = "none";
+      document.getElementById("studentsPage").style.display = "none";
+
+      if (page === "dashboard") {
+        document.getElementById("dashboardPage").style.display = "block";
+      }
+
+      if (page === "students") {
+        document.getElementById("studentsPage").style.display = "block";
+      }
+    };
+
+    // AUTH STATE
+    onAuthStateChanged(auth, async (user) => {
+      if (!user) {
+        loginBox.style.display = "flex";
+        app.style.display = "none";
+        currentRole = "";
+        currentUserEmail = "";
+        currentUserUid = "";
+        currentStudentId = "";
+        allData = [];
+
+        if (unsubscribeStudents) {
+          unsubscribeStudents();
+          unsubscribeStudents = null;
+        }
+
+        return;
+      }
+
+      try {
+        currentUserEmail = user.email || "";
+        currentUserUid = user.uid;
+
+        const userRef = doc(db, "users", user.uid);
+        const userSnap = await getDoc(userRef);
+
+        if (!userSnap.exists()) {
+          alert("No role assigned for this user");
+          await signOut(auth);
+          return;
+        }
+
+        const userData = userSnap.data();
+        currentRole = userData.role || "";
+        const displayName = userData.name || currentUserEmail;
+        currentStudentId = userData.studentId || currentUserEmail;
+
+        loginBox.style.display = "none";
+        app.style.display = "block";
+
+        setupRoleUI(displayName);
+        loadStudents();
+      } catch (error) {
+        alert("Role check failed: " + error.message);
+      }
+    });
+
+    function setupRoleUI(displayName) {
+      if (currentRole === "admin") {
+        welcomeText.innerText = "Welcome Admin 👑";
+
+        sidebarMenu.innerHTML = `
+          <h2>👑 Admin Panel</h2>
+          <hr>
+          <p onclick="showPage('dashboard')">📊 Dashboard</p>
+          <p onclick="showPage('students')">👨‍🎓 Students</p>
+          <p onclick="logout()">🚪 Logout</p>
+        `;
+
+        studentFormArea.style.display = "flex";
+        downloadArea.style.display = "block";
+        showPage("dashboard");
+      }
+
+      else if (currentRole === "teacher") {
+        welcomeText.innerText = "Welcome ${displayName} 👨‍🏫";
+
+        sidebarMenu.innerHTML = `
+          <h2>👨‍🏫 Teacher Panel</h2>
+          <hr>
+          <p onclick="showPage('students')">👨‍🎓 Students</p>
+          <p onclick="logout()">🚪 Logout</p>
+        `;
+
+        studentFormArea.style.display = "flex";
+        downloadArea.style.display = "block";
+        showPage("students");
+      }
+
+      else if (currentRole === "student") {
+        welcomeText.innerText = "Welcome ${displayName} 🎓";
+
+        sidebarMenu.innerHTML = `
+          <h2>🎓 Student Panel</h2>
+          <hr>
+          <p onclick="showPage('dashboard')">📄 My Result</p>
+          <p onclick="showPage('students')">📋 My Record</p>
+          <p onclick="logout()">🚪 Logout</p>
+        `;
+
+        studentFormArea.style.display = "none";
+        downloadArea.style.display = "none";
+        showPage("dashboard");
+      }
+
+      else {
+        alert("Invalid role found");
+        logout();
+      }
+    }
+
+    function loadStudents() {
+      if (unsubscribeStudents) {
+        unsubscribeStudents();
+        unsubscribeStudents = null;
+      }
+
+      let ref;
+
+      if (currentRole === "student") {
+        ref = query(
+          collection(db, "students"),
+          where("studentId", "==", currentStudentId)
+        );
+      } else {
+        ref = collection(db, "students");
+      }
+
+      unsubscribeStudents = onSnapshot(ref, (snap) => {
+        allData = [];
+        snap.forEach(d => allData.push({ id: d.id, ...d.data() }));
+        applyFilters();
+      }, (error) => {
+        alert("Student data load failed: " + error.message);
+      });
+    }
+
+    // ADD STUDENT
+    window.addStudents = async function () {
+      if (currentRole !== "admin" && currentRole !== "teacher") {
+        alert("You do not have permission");
+        return;
+      }
+
+      const name = document.getElementById("name").value.trim();
+      const cls = document.getElementById("studentClass").value.trim();
+      const section = document.getElementById("section").value.trim();
+      const roll = document.getElementById("roll").value.trim();
+      const studentEmail = document.getElementById("studentEmail").value.trim();
+      const marks = document.getElementById("marks").value.trim();
+      const attendance = document.getElementById("attendance").value;
+
+      if (!name || !cls || !section || !roll || !studentEmail) {
+        alert("Fill all required fields");
+        return;
+      }
+
+      try {
+        await addDoc(collection(db, "students"), {
+          name,
+          className: cls,
+          section,
+          roll,
+          studentEmail,
+          marks,
+          attendance,
+          studentId: studentEmail
+        });
+
+        document.getElementById("name").value = "";
+        document.getElementById("studentClass").value = "";
+        document.getElementById("section").value = "";
+        document.getElementById("roll").value = "";
+        document.getElementById("studentEmail").value = "";
+        document.getElementById("marks").value = "";
+        document.getElementById("attendance").value = "Present";
+      } catch (e) {
+        alert("Add failed: " + e.message);
+      }
+    };
+
+    // FILTER
+    window.applyFilters = function () {
+      const s = document.getElementById("search").value.toLowerCase();
+      const c = document.getElementById("filterClass").value.toLowerCase();
+      const sec = document.getElementById("filterSection").value.toLowerCase();
+
+      const filtered = allData.filter(d =>
+        (d.name || "").toLowerCase().includes(s) &&
+        (c ? (d.className || "").toLowerCase().includes(c) : true) &&
+        (sec ? (d.section || "").toLowerCase().includes(sec) : true)
+      );
+
+      render(filtered);
+    };
+
+    // RENDER
+    function render(data) {
+      const table = document.getElementById("table");
+      const total = document.getElementById("total");
+      const avg = document.getElementById("avg");
+
+      table.innerHTML = "";
+      let sum = 0;
+
+      data.forEach(d => {
+        sum += Number(d.marks || 0);
+
+        let actionButtons = "No Access";
+
+        if (currentRole === "admin") {
+          actionButtons = `
+            <button class="actionBtn deleteBtn" onclick="delStudent('${d.id}')">Delete</button>
+            <button class="actionBtn editBtn" onclick="editStudent('${d.id}','${escapeHtmlAttr(d.name || "")}','${escapeHtmlAttr(d.className || "")}','${escapeHtmlAttr(d.section || "")}','${escapeHtmlAttr(d.roll || "")}','${escapeHtmlAttr(d.studentEmail || "")}','${escapeHtmlAttr(d.marks || "")}','${escapeHtmlAttr(d.attendance || "")}')">Edit</button>
+          `;
+        } else if (currentRole === "teacher") {
+          actionButtons = `
+            <button class="actionBtn editBtn" onclick="editStudent('${d.id}','${escapeHtmlAttr(d.name || "")}','${escapeHtmlAttr(d.className || "")}','${escapeHtmlAttr(d.section || "")}','${escapeHtmlAttr(d.roll || "")}','${escapeHtmlAttr(d.studentEmail || "")}','${escapeHtmlAttr(d.marks || "")}','${escapeHtmlAttr(d.attendance || "")}')">Edit</button>
+          `;
+        }
+
+        table.innerHTML += `
+          <tr>
+            <td>${escapeHtml(d.name || "")}</td>
+            <td>${escapeHtml(d.className || "")}</td>
+            <td>${escapeHtml(d.section || "")}</td>
+            <td>${escapeHtml(d.roll || "")}</td>
+            <td>${escapeHtml(d.studentEmail || "")}</td>
+            <td>${escapeHtml(d.marks || "")}</td>
+            <td>${escapeHtml(d.attendance || "")}</td>
+            <td>${actionButtons}</td>
+          </tr>
+        `;
+      });
+
+      total.innerText = data.length;
+      avg.innerText = data.length ? (sum / data.length).toFixed(2) : 0;
+    }
+
+    // DELETE
+    window.delStudent = async function (id) {
+      if (currentRole !== "admin") {
+        alert("Only admin can delete");
+        return;
+      }
+
+      const ok = confirm("Are you sure you want to delete this student?");
+      if (!ok) return;
+
+      try {
+        await deleteDoc(doc(db, "students", id));
+      } catch (e) {
+        alert("Delete failed: " + e.message);
+      }
+    };
+
+    // EDIT
+    window.editStudent = async function (id, name, className, section, roll, studentEmail, marks, attendance) {
+      if (currentRole !== "admin" && currentRole !== "teacher") {
+        alert("No permission");
+        return;
+      }
+
+      const newName = prompt("Name", name);
+      if (newName === null) return;
+
+      const newClass = prompt("Class", className);
+      if (newClass === null) return;
+
+      const newSection = prompt("Section", section);
+      if (newSection === null) return;
+
+      const newRoll = prompt("Roll", roll);
+      if (newRoll === null) return;
+
+      const newStudentEmail = prompt("Student Email", studentEmail);
+      if (newStudentEmail === null) return;
+
+      const newMarks = prompt("Marks", marks);
+      if (newMarks === null) return;
+
+      const newAttendance = prompt("Attendance (Present / Absent / Late)", attendance);
+      if (newAttendance === null) return;
+
+      try {
+        await updateDoc(doc(db, "students", id), {
+          name: newName.trim(),
+          className: newClass.trim(),
+          section: newSection.trim(),
+          roll: newRoll.trim(),
+          studentEmail: newStudentEmail.trim(),
+          marks: newMarks.trim(),
+          attendance: newAttendance.trim(),
+          studentId: newStudentEmail.trim()
+        });
+      } catch (e) {
+        alert("Update failed: " + e.message);
+      }
+    };
+
+    // CSV DOWNLOAD
+    window.downloadCSV = function () {
+      if (currentRole !== "admin" && currentRole !== "teacher") {
+        alert("No permission to download");
+        return;
+      }
+
+      const s = document.getElementById("search").value.toLowerCase();
+      const c = document.getElementById("filterClass").value.toLowerCase();
+      const sec = document.getElementById("filterSection").value.toLowerCase();
+
+      const filtered = allData.filter(d =>
+        (d.name || "").toLowerCase().includes(s) &&
+        (c ? (d.className || "").toLowerCase().includes(c) : true) &&
+        (sec ? (d.section || "").toLowerCase().includes(sec) : true)
+      );
+
+      if (!filtered.length) {
+        alert("No filtered data found");
+        return;
+      }
+
+      let csv = "Name,Class,Section,Roll,Student Email,Marks,Attendance\n";
+
+      filtered.forEach(student => {
+        const row = [
+          `"${csvSafe(student.name || "")}"`,
+          `"${csvSafe(student.className || "")}"`,
+          `"${csvSafe(student.section || "")}"`,
+          `"${csvSafe(student.roll || "")}"`,
+          `"${csvSafe(student.studentEmail || "")}"`,
+          `"${csvSafe(student.marks || "")}"`,
+          `"${csvSafe(student.attendance || "")}"`
+        ];
+
+        csv += row.join(",") + "\n";
+      });
+
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "filtered_students.csv";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+
+      URL.revokeObjectURL(url);
+    };
+
+    function csvSafe(value) {
+      return String(value).replace(/"/g, '""');
+    }
+
+    function escapeHtml(value) {
+      return String(value)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#39;");
+    }
+
+    function escapeHtmlAttr(value) {
+      return String(value)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#39;");
+    }
+  </script>
+
+</body>
+</html>
