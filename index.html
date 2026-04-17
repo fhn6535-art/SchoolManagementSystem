@@ -184,7 +184,7 @@ window.addStudents = async function() {
 
     // ফায়ারবেসে ডেটা পাঠানো
  await addDoc(collection(db, "students"), {
-  name: name.value,
+  name: name,
   className: document.getElementById("class").value,
   section: section.value,
   roll: roll.value,
