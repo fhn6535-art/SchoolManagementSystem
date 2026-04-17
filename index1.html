@@ -356,9 +356,7 @@
      deleteDoc,
      doc,
      updateDoc,
-     getDocs,
-     query,
-     where
+     getDocs
    }
    from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
@@ -404,8 +402,19 @@
     const userEmail = user.email;
 
     const q = query(
-      collection(db, "users"),
-      where("email", "==", userEmail)
+      const userRef = doc(db, "users", user.uid);
+const userSnap = await getDoc(userRef);
+
+if (!userSnap.exists()) {
+  alert("No role assigned for this user");
+  await signOut(auth);
+  return;
+}
+
+const userData = userSnap.data();
+currentRole = userData.role || "";
+const displayName = userData.name || user.email;
+const currentStudentId = userData.studentId || "";
     );
 
     const snap = await getDocs(q);
