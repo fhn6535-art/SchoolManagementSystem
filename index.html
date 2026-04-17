@@ -143,8 +143,8 @@ onAuthStateChanged(auth, async (user) => {
     currentRole = snap.exists() ? snap.data().role : "teacher";
 
     // 🔥 name show
-    const name = user.email.split("@")[0];
-    document.getElementById("userTitle").innerText = "Welcome, " + name + " 👋";
+    const name = snap.exists() ? snap.data().name : user.email;
+document.getElementById("userTitle").innerText = "Welcome, " + name + " 👋";
 
     loginBox.style.display = "none";
     app.style.display = "block";
