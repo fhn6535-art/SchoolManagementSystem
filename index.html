@@ -115,6 +115,7 @@ const db = getFirestore(app);
 const auth = getAuth(app);
   
 let allData = [];
+let currentRole = "";
 
 // LOGIN
 window.login = async function() {
