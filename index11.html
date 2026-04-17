@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>FH School Management System</title>
+
+  <style>
+    body { font-family: Arial; padding: 20px; background:#f5f6fa; }
+
+    input, select, button {
+      padding: 8px;
+      margin: 5px;
+      border-radius: 5px;
+      border: 1px solid #ccc;
+    }
+
+    button {
+      background: #4CAF50;
+      color: white;
+      cursor: pointer;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin-top: 15px;
+      background:white;
+    }
+
+    th, td {
+      border: 1px solid #ddd;
+      padding: 8px;
+      text-align: center;
+    }
+
+    th { background: #eee; }
+
+    .card {
+      background: white;
+      padding: 15px;
+      border-radius: 10px;
+      margin-bottom: 15px;
+    }
+  </style>
+</head>
+
+<body>
+
+<h2>🔐 Login</h2>
+
+<div id="loginBox">
+  <input id="email" placeholder="Email"><br><br>
+  <input id="password" type="password" placeholder="Password"><br><br>
+  <button onclick="login()">Login</button>
+</div>
+
+<div id="app" style="display:none;">
+
+<h2>🔥 FH School Management System</h2>
+
+<div class="card">
+  <b>Total:</b> <span id="total">0</span> |
+  <b>Avg Marks:</b> <span id="avg">0</span>
+  <button onclick="logout()">Logout</button>
+</div>
+
+<div class="card">
+
+<input id="name" placeholder="Name">
+<input id="class" placeholder="Class">
+<input id="section" placeholder="Section">
+<input id="roll" placeholder="Roll">
+<input id="marks" type="number" placeholder="Marks">
+
+<select id="attendance">
+  <option>Present</option>
+  <option>Absent</option>
+  <option>Late</option>
+</select>
+
+<button onclick="addStudent()">Add</button>
+
+</div>
+
+<div class="card">
+
+<input id="search" placeholder="Search..." onkeyup="applyFilters()">
+
+<select id="filterClass" onchange="applyFilters()">
+  <option value="">All Classes</option>
+  <option value="1">Class 1</option>
+  <option value="2">Class 2</option>
+  <option value="3">Class 3</option>
+</select>
+
+<select id="filterSection" onchange="applyFilters()">
+  <option value="">All Sections</option>
+  <option value="A">Section A</option>
+  <option value="B">Section B</option>
+</select>
+
+</div>
+
+<div class="card">
+<div style="overflow-x:auto;">
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Class</th>
+<th>Section</th>
+<th>Roll</th>
+<th>Marks</th>
+<th>Attendance</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody id="table"></tbody>
+</table>
+</div>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import {
+  getFirestore, collection, addDoc, onSnapshot,
+  deleteDoc, doc, updateDoc, getDoc
+} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+import {
+  getAuth, signInWithEmailAndPassword,
+  onAuthStateChanged, signOut
+} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+
+// 🔥 Firebase Config
+const firebaseConfig = {
+  apiKey: "AIzaSyCOL08Us-2m5w7rznnwUGudTz-QOxyi1l4",
+  authDomain: "school-management-system-93aba.firebaseapp.com",
+  projectId: "school-management-system-93aba"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const auth = getAuth(app);
+
+let allData = [];
+let currentRole = "";
+
+// LOGIN
+window.login = async function() {
+  const email = emailInput.value;
+  const pass = passwordInput.value;
+
+  try {
+    await signInWithEmailAndPassword(auth, email, pass);
+  } catch (e) {
+    alert(e.message);
+  }
+};
+
+// LOGOUT
+window.logout = () => signOut(auth);
+
+// CHECK LOGIN + ROLE
+onAuthStateChanged(auth, async (user) => {
+  if (user) {
+
+    const ref = doc(db, "users", user.email);
+    const snap = await getDoc(ref);
+
+    currentRole = snap.exists() ? snap.data().role : "teacher";
+
+    loginBox.style.display = "none";
+    app.style.display = "block";
+
+  } else {
+    loginBox.style.display = "block";
+    app.style.display = "none";
+  }
+});
+
+// ADD
+window.addStudent = async function() {
+  await addDoc(collection(db, "students"), {
+    name: name.value,
+    'class': class.value,
+    section: section.value,
+    roll: roll.value,
+    marks: marks.value,
+    attendance: attendance.value
+  });
+}
+
+// LOAD
+onSnapshot(collection(db, "students"), snap => {
+  allData = [];
+  snap.forEach(d => allData.push({ id: d.id, ...d.data() }));
+  applyFilters();
+});
+
+// FILTER
+window.applyFilters = function() {
+  const s = search.value.toLowerCase();
+  const c = filterClass.value;
+  const sec = filterSection.value;
+
+  const filtered = allData.filter(d =>
+    d.name.toLowerCase().includes(s) &&
+    (c ? d.class == c : true) &&
+    (sec ? d.section == sec : true)
+  );
+
+  render(filtered);
+};
+
+// RENDER
+function render(data) {
+  table.innerHTML = "";
+
+  let sum = 0;
+
+  data.forEach(d => {
+    sum += Number(d.marks || 0);
+
+    table.innerHTML += `
+    <tr>
+      <td>${d.name}</td>
+      <td>${d.class}</td>
+      <td>${d.section}</td>
+      <td>${d.roll}</td>
+      <td>${d.marks}</td>
+      <td>${d.attendance}</td>
+      <td>
+        ${currentRole === "admin"
+          ? `<button onclick="del('${d.id}')">Delete</button>
+             <button onclick="edit('${d.id}','${d.name}','${d.marks}')">Edit</button>`
+          : "No Access"}
+      </td>
+    </tr>`;
+  });
+
+  total.innerText = data.length;
+  avg.innerText = data.length ? (sum/data.length).toFixed(2) : 0;
+}
+
+// DELETE
+window.del = id => deleteDoc(doc(db, "students", id));
+
+// EDIT
+window.edit = async (id, name, marksVal) => {
+  const n = prompt("Name", name);
+  const m = prompt("Marks", marksVal);
+  await updateDoc(doc(db, "students", id), { name:n, marks:m });
+};
+
+</script>
+
+</body>
+</html>

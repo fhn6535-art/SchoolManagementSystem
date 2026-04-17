@@ -3,15 +3,37 @@
 <head>
   <title>FH School Management System</title>
   <style>
-    body { font-family: Arial; padding: 20px; }
-    input, select, button { margin: 5px; padding: 8px; }
-    table { border-collapse: collapse; width: 100%; margin-top: 15px; }
-    th, td { border: 1px solid #ccc; padding: 8px; text-align: center; }
+   body { 
+  font-family: Arial; 
+  padding: 20px; 
+}
+
+input, select, button { 
+  margin: 5px; 
+  padding: 8px; 
+}
+
+table { 
+  border-collapse: collapse; 
+  width: 100%; 
+  min-width: 900px; /* 🔥 important */
+  margin-top: 15px; 
+}
+
+th, td { 
+  border: 1px solid #ccc; 
+  padding: 8px; 
+  text-align: center; 
+}
+
+th {
+  background: #f5f5f5;
+}
   </style>
 </head>
 <body>
 
-<h2>🔐 Login</h2>
+<h2 id="userTitle">🔐 Login</h2>
 
 <div id="loginBox">
   <input id="email" placeholder="Email"><br><br>
@@ -20,7 +42,7 @@
 </div>
 
 <div id="app" style="display:none;">
-<h2>🔥 FH School Management System</h2>
+<h2>🔥 FH 123 School Management System</h2>
 
 <!-- Dashboard -->
 <div>
@@ -33,6 +55,7 @@
 <!-- Form -->
 <input id="name" placeholder="Name">
 <input id="class" placeholder="Class">
+<input id="section" placeholder="Section">
 <input id="roll" placeholder="Roll">
 <input id="marks" type="number" placeholder="Marks">
 
@@ -42,24 +65,27 @@
   <option>Late</option>
 </select>
 
-<!-- এখানে addStudent() এর বদলে addStudents() হবে -->
 <button onclick="addStudents()">Add</button> 
 
 <br>
 
 <!-- Search -->
-<input id="search" placeholder="Search by name..." onkeyup="filterData()">
-
+<input id="filterClass" placeholder="Filter by Class" onkeyup="applyFilters()">
+<input id="filterSection" placeholder="Filter by Section" onkeyup="applyFilters()">
+<input id="search" placeholder="Search by name..." onkeyup="applyFilters()">
+    
 <!-- Export -->
 <button onclick="exportCSV()">CSV</button>
 <button onclick="exportPDF()">PDF</button>
 
 <!-- Table -->
-<table>
+<div style="overflow-x:auto;">
+  <table>
   <thead>
     <tr>
       <th>Name</th>
       <th>Class</th>
+      <th>Section</th>
       <th>Roll</th>
       <th>Marks</th>
       <th>Attendance</th>
@@ -68,12 +94,16 @@
   </thead>
   <tbody id="table"></tbody>
 </table>
-
+</div>
+  
 <!-- Firebase -->
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getFirestore, collection, addDoc, onSnapshot, deleteDoc, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-
+import { getFirestore, collection, addDoc, onSnapshot, deleteDoc, doc, updateDoc, getDoc } 
+from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } 
+from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+  
 const firebaseConfig = {
   apiKey: "AIzaSyCOL08Us-2m5w7rznnwUGudTz-QOxyi1l4",
   authDomain: "school-management-system-93aba.firebaseapp.com",
@@ -82,8 +112,10 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
-
+const auth = getAuth(app);
+  
 let allData = [];
+let currentRole = "";
 
 // LOGIN
 window.login = async function() {
@@ -103,13 +135,37 @@ window.logout = function() {
 };
 
 // SESSION CHECK
-onAuthStateChanged(auth, (user) => {
+
+const loginBox = document.getElementById("loginBox");
+const app = document.getElementById("app");
+
+onAuthStateChanged(auth, async (user) => {
   if (user) {
-    document.getElementById("loginBox").style.display = "none";
-    document.getElementById("app").style.display = "block";
+    try {
+      const ref = doc(db, "users", user.email);
+      const snap = await getDoc(ref);
+
+      currentRole = snap.exists() ? snap.data().role : "teacher";
+
+      const name = snap.exists()
+        ? snap.data().name
+        : user.email.split("@")[0];
+
+      document.getElementById("userTitle").innerText =
+        "Welcome, " + name + " 👋";
+
+    } catch (e) {
+      console.error(e);
+    }
+
+    loginBox.style.display = "none";
+    app.style.display = "block";
+
   } else {
-    document.getElementById("loginBox").style.display = "block";
-    document.getElementById("app").style.display = "none";
+    document.getElementById("userTitle").innerText = "🔐 Login";
+
+    loginBox.style.display = "block";
+    app.style.display = "none";
   }
 });
 
@@ -119,6 +175,7 @@ window.addStudents = async function() {
     // HTML-এর id অনুযায়ী সিলেক্ট করা হয়েছে
     const nameInput = document.getElementById('name');
     const classInput = document.getElementById('class');
+    const sectionInput = document.getElementById('section');
     const rollInput = document.getElementById('roll');
     const marksInput = document.getElementById('marks');
     const attendanceInput = document.getElementById('attendance');
@@ -126,29 +183,32 @@ window.addStudents = async function() {
     // ভ্যালু সংগ্রহ
     const name = nameInput.value;
     const cls = classInput.value;
+    const section = sectionInput.value;
     const roll = rollInput.value;
     const marks = marksInput.value;
     const attendance = attendanceInput.value;
-
-    if (!name || !cls || !roll) {
-      alert("Please fill Name, Class, and Roll");
+      
+    if (!name || !cls || !section|| !roll) {
+      alert("Please fill Name, Class, Section and Roll");
       return;
     }
 
     // ফায়ারবেসে ডেটা পাঠানো
-    await addDoc(collection(db, "students"), {
-      name, 
-      class: cls, 
-      roll, 
-      marks, 
-      attendance
-    });
+ await addDoc(collection(db, "students"), {
+  name: name,
+  className: document.getElementById("class").value,
+  section: section,
+  roll: roll,
+  marks: marks.value,
+  attendance: attendance.value
+});
 
     alert("Student added successfully!");
 
     // ফর্ম ক্লিয়ার করা
     nameInput.value = "";
     classInput.value = "";
+    sectionInput.value = "";
     rollInput.value = "";
     marksInput.value = "";
 
@@ -182,13 +242,14 @@ function render(data) {
     table.innerHTML += `
       <tr>
         <td>${d.name}</td>
-        <td>${d.class}</td>
+        <td>${d.className}</td>
+        <td>${d.section}</td>
         <td>${d.roll}</td>
         <td>${d.marks}</td>
         <td>${d.attendance}</td>
         <td>
           <button onclick="del('${d.id}')">Delete</button>
-          <button onclick="edit('${d.id}','${d.name}','${d.class}','${d.roll}','${d.marks}','${d.attendance}')">Edit</button>
+          <button onclick="edit('${d.id}','${d.name}','${d.className}','${d.section}','${d.roll}','${d.marks}','${d.attendance}')">Edit</button>
         </td>
       </tr>
     `;
@@ -204,7 +265,7 @@ window.del = async function(id) {
 };
 
 // EDIT
-window.edit = async function(id, name, cls, roll, marks, attendance) {
+window.edit = async function(id, name, cls, section, roll, marks, attendance) {
   const newName = prompt("Name", name);
   const newMarks = prompt("Marks", marks);
 
@@ -216,16 +277,16 @@ window.edit = async function(id, name, cls, roll, marks, attendance) {
 
 // SEARCH
 window.filterData = function() {
-  const val = document.getElementById("search").value.toLowerCase();
+   const val = document.getElementById("search").value.toLowerCase();
   const filtered = allData.filter(d => d.name.toLowerCase().includes(val));
   render(filtered);
 };
 
 // CSV
 window.exportCSV = function() {
-  let csv = "Name,Class,Roll,Marks,Attendance\n";
+  let csv = "Name,Class,Section,Roll,Marks,Attendance\n";
   allData.forEach(d => {
-    csv += `${d.name},${d.class},${d.roll},${d.marks},${d.attendance}\n`;
+    csv += `${d.name},${d.className},${d.section},${d.roll},${d.marks},${d.attendance}\n`;
   });
 
   const blob = new Blob([csv], { type: "text/csv" });
@@ -248,7 +309,22 @@ window.exportPDF = async function() {
 
   doc.save("report.pdf");
 };
+window.applyFilters = function() {
+  const search = document.getElementById("search").value.toLowerCase();
+  const classFilter = document.getElementById("filterClass").value.toLowerCase();
+  const sectionFilter = document.getElementById("filterSection").value.toLowerCase();
 
+  const filtered = allData.filter(d => {
+    return (
+      (d.name.toLowerCase().includes(search)) &&
+      (classFilter? d.className.toLowerCase().includes(classFilter) : true) &&
+      (sectionFilter? d.section?.toLowerCase().includes(sectionFilter) : true)
+    );
+  });
+
+  render(filtered);
+};
+  
 </script>
 
 </body>

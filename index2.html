@@ -1,120 +1,271 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>School System</title>
+  <title>FH School Management System</title>
+  <style>
+    body { font-family: Arial; padding: 20px; }
+    input, select, button { margin: 5px; padding: 8px; }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      min-width: 900px;
+      margin-top: 15px;
+    }
+
+    th, td {
+      border: 1px solid #ccc;
+      padding: 8px;
+      text-align: center;
+    }
+
+    th { background: #f5f5f5; }
+  </style>
 </head>
 <body>
 
-<h2>➕ Add Marks</h2>
+<h2 id="userTitle">🔐 Login</h2>
 
-<select id="studentSelect"></select><br><br>
+<div id="loginBox">
+  <input id="email" placeholder="Email"><br><br>
+  <input id="password" type="password" placeholder="Password"><br><br>
+  <button onclick="login()">Login</button>
+</div>
 
-<input id="subject" placeholder="Subject">
-<input id="marks" placeholder="Marks">
-<input id="total" placeholder="Total">
+<div id="app" style="display:none;">
+<h2>🔥 FH School Management System</h2>
 
-<button onclick="addMarks()">Save Marks</button>
+<div>
+  <b>Total:</b> <span id="total">0</span> |
+  <b>Avg Marks:</b> <span id="avg">0</span>
+  <button onclick="logout()">Logout</button>
+</div>
 
-<hr>
+<br>
 
-<h2>📊 Result</h2>
-<input id="checkStudent" placeholder="Select Student ID">
-<button onclick="getResult()">Show Result</button>
+<input id="name" placeholder="Name">
+<input id="class" placeholder="Class">
+<input id="section" placeholder="Section">
+<input id="roll" placeholder="Roll">
+<input id="marks" type="number" placeholder="Marks">
 
-<p id="output"></p>
+<select id="attendance">
+  <option>Present</option>
+  <option>Absent</option>
+  <option>Late</option>
+</select>
 
-<!-- Firebase -->
-<script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore-compat.js"></script>
+<button onclick="addStudents()">Add</button>
 
-<script>
+<br>
+
+<input id="filterClass" placeholder="Filter Class" onkeyup="applyFilters()">
+<input id="filterSection" placeholder="Filter Section" onkeyup="applyFilters()">
+<input id="search" placeholder="Search..." onkeyup="applyFilters()">
+
+<br>
+
+<button onclick="exportCSV()">CSV</button>
+<button onclick="exportPDF()">PDF</button>
+
+<div style="overflow-x:auto;">
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Class</th>
+<th>Section</th>
+<th>Roll</th>
+<th>Marks</th>
+<th>Attendance</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody id="table"></tbody>
+</table>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import { getFirestore, collection, addDoc, onSnapshot, deleteDoc, doc, updateDoc, getDoc } 
+from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } 
+from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+
 const firebaseConfig = {
-  // 👉 paste your config here
+  apiKey: "AIzaSyCOL08Us-2m5w7rznnwUGudTz-QOxyi1l4",
+  authDomain: "school-management-system-93aba.firebaseapp.com",
+  projectId: "school-management-system-93aba"
 };
 
-firebase.initializeApp(firebaseConfig);
-const db = firebase.firestore();
+const appFirebase = initializeApp(firebaseConfig);
+const db = getFirestore(appFirebase);
+const auth = getAuth(appFirebase);
 
-let studentsMap = {};
+let allData = [];
+let currentRole = "";
 
-// 🔥 Load students into dropdown
-function loadStudents() {
-  db.collection("students").get().then(snapshot => {
-    let select = document.getElementById("studentSelect");
+// DOM refs
+const loginBox = document.getElementById("loginBox");
+const app = document.getElementById("app");
 
-    snapshot.forEach(doc => {
-      let data = doc.data();
+// LOGIN
+window.login = async function() {
+  try {
+    await signInWithEmailAndPassword(
+      auth,
+      document.getElementById("email").value,
+      document.getElementById("password").value
+    );
+  } catch (e) {
+    alert(e.message);
+  }
+};
 
-      studentsMap[doc.id] = data.name;
+// LOGOUT
+window.logout = () => signOut(auth);
 
-      let option = document.createElement("option");
-      option.value = doc.id;
-      option.text = data.name;
+// SESSION
+onAuthStateChanged(auth, async (user) => {
+  if (user) {
+    let name = user.email.split("@")[0];
 
-      select.appendChild(option);
-    });
-  });
-}
-
-// 🔥 Add Marks
-function addMarks() {
-  let studentId = document.getElementById("studentSelect").value;
-  let subject = document.getElementById("subject").value;
-  let marks = Number(document.getElementById("marks").value);
-  let total = Number(document.getElementById("total").value);
-
-  db.collection("marks").add({
-    studentId,
-    subject,
-    marks,
-    total
-  }).then(() => {
-    alert("Marks Saved!");
-  });
-}
-
-// 🔥 Get Result
-function getResult() {
-  let id = document.getElementById("checkStudent").value;
-
-  db.collection("marks")
-    .where("studentId", "==", id)
-    .get()
-    .then(snapshot => {
-
-      let totalMarks = 0;
-      let totalFull = 0;
-
-      snapshot.forEach(doc => {
-        let data = doc.data();
-        totalMarks += data.marks;
-        totalFull += data.total;
-      });
-
-      let percent = (totalMarks / totalFull) * 100;
-
-      let status = "";
-      let suggestion = "";
-
-      if (percent < 50) {
-        status = "⚠️ Weak";
-        suggestion = "Basic practice needed (Math/English revision)";
+    try {
+      const snap = await getDoc(doc(db, "users", user.email));
+      if (snap.exists()) {
+        currentRole = snap.data().role;
+        name = snap.data().name;
       } else {
-        status = "✅ Good";
-        suggestion = "Keep it up!";
+        currentRole = "teacher";
       }
+    } catch (e) {
+      console.log("No user data");
+    }
 
-      document.getElementById("output").innerHTML =
-        "Student: " + studentsMap[id] + "<br>" +
-        "Percentage: " + percent.toFixed(2) + "%<br>" +
-        "Status: " + status + "<br>" +
-        "Suggestion: " + suggestion;
-    });
+    document.getElementById("userTitle").innerText =
+      "Welcome, " + name + " 👋";
+
+    loginBox.style.display = "none";
+    app.style.display = "block";
+
+  } else {
+    document.getElementById("userTitle").innerText = "🔐 Login";
+    loginBox.style.display = "block";
+    app.style.display = "none";
+  }
+});
+
+// ADD
+window.addStudents = async function() {
+  const name = document.getElementById("name").value;
+  const cls = document.getElementById("class").value;
+  const section = document.getElementById("section").value;
+  const roll = document.getElementById("roll").value;
+  const marks = document.getElementById("marks").value;
+  const attendance = document.getElementById("attendance").value;
+
+  if (!name || !cls || !section || !roll) {
+    alert("Fill all fields");
+    return;
+  }
+
+  await addDoc(collection(db, "students"), {
+    name,
+    className: cls,
+    section,
+    roll,
+    marks,
+    attendance
+  });
+};
+
+// LOAD
+onSnapshot(collection(db, "students"), snap => {
+  allData = [];
+  snap.forEach(d => allData.push({ id: d.id, ...d.data() }));
+  applyFilters();
+});
+
+// FILTER
+window.applyFilters = function() {
+  const s = document.getElementById("search").value.toLowerCase();
+  const c = document.getElementById("filterClass").value.toLowerCase();
+  const sec = document.getElementById("filterSection").value.toLowerCase();
+
+  const filtered = allData.filter(d =>
+    d.name.toLowerCase().includes(s) &&
+    (c ? d.className.toLowerCase().includes(c) : true) &&
+    (sec ? d.section?.toLowerCase().includes(sec) : true)
+  );
+
+  render(filtered);
+};
+
+// RENDER
+function render(data) {
+  const table = document.getElementById("table");
+  table.innerHTML = "";
+
+  let sum = 0;
+
+  data.forEach(d => {
+    sum += Number(d.marks || 0);
+
+    table.innerHTML += `
+<tr>
+<td>${d.name}</td>
+<td>${d.className}</td>
+<td>${d.section}</td>
+<td>${d.roll}</td>
+<td>${d.marks}</td>
+<td>${d.attendance}</td>
+<td>
+<button onclick="del('${d.id}')">Delete</button>
+<button onclick="edit('${d.id}','${d.name}','${d.marks}')">Edit</button>
+</td>
+</tr>`;
+  });
+
+  document.getElementById("total").innerText = data.length;
+  document.getElementById("avg").innerText =
+    data.length ? (sum / data.length).toFixed(2) : 0;
 }
 
-// Load students on page open
-loadStudents();
+// DELETE
+window.del = id => deleteDoc(doc(db, "students", id));
 
+// EDIT
+window.edit = async (id, name, marks) => {
+  const n = prompt("Name", name);
+  const m = prompt("Marks", marks);
+  await updateDoc(doc(db, "students", id), { name: n, marks: m });
+};
+
+// CSV
+window.exportCSV = function() {
+  let csv = "Name,Class,Section,Roll,Marks,Attendance\n";
+  allData.forEach(d => {
+    csv += `${d.name},${d.className},${d.section},${d.roll},${d.marks},${d.attendance}\n`;
+  });
+
+  const blob = new Blob([csv]);
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "students.csv";
+  a.click();
+};
+
+// PDF
+window.exportPDF = async function() {
+  const { jsPDF } = await import("https://cdn.jsdelivr.net/npm/jspdf@2.5.1/+esm");
+  const doc = new jsPDF();
+
+  allData.forEach((d, i) => {
+    doc.text(`${i+1}. ${d.name} | ${d.marks}`, 10, 10 + i*10);
+  });
+
+  doc.save("report.pdf");
+};
 </script>
 
 </body>

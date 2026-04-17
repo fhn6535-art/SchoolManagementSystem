@@ -1,150 +1,292 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>School Management</title>
+  <title>FH New Admin Panel</title>
+#hello  hrid how are you?
+  <style>
+    body { margin:0; font-family: Arial; background:#f4f6f9; }
+
+    input, select, button {
+      padding:8px; margin:5px;
+    }
+
+    button {
+      background:#3498db;
+      color:white;
+      border:none;
+      cursor:pointer;
+      border-radius:5px;
+    }
+
+    table {
+      width:100%;
+      border-collapse: collapse;
+      margin-top:15px;
+      background:white;
+    }
+
+    th, td {
+      border:1px solid #ddd;
+      padding:8px;
+      text-align:center;
+    }
+
+    th { background:#eee; }
+
+    .card {
+      background:white;
+      padding:20px;
+      border-radius:10px;
+      box-shadow:0 2px 5px rgba(0,0,0,0.1);
+      flex:1;
+    }
+  </style>
 </head>
+
 <body>
 
-<h2>Add Student</h2>
+<!-- 🔐 LOGIN -->
+<div id="loginBox" style="padding:30px;">
+  <h2 id="userTitle">🔐 Login</h2>
+
+  <input id="email" placeholder="Email"><br><br>
+  <input id="password" type="password" placeholder="Password"><br><br>
+  <button onclick="login()">Login</button>
+</div>
+
+<!-- 🔥 ADMIN PANEL -->
+<div id="app" style="display:none;">
+
+<div style="display:flex; height:100vh;">
+
+<!-- 🔵 SIDEBAR -->
+<div style="width:220px; background:#2c3e50; color:white; padding:15px;">
+  <h2>🎓 FH Admin</h2>
+  <hr>
+
+  <p onclick="showPage('dashboard')" style="cursor:pointer;">📊 Dashboard</p>
+  <p onclick="showPage('students')" style="cursor:pointer;">👨‍🎓 Students</p>
+  <p onclick="logout()" style="cursor:pointer;">🚪 Logout</p>
+</div>
+
+<!-- 🟢 MAIN -->
+<div style="flex:1; padding:20px; overflow:auto;">
+
+<h2 id="welcomeText">Welcome</h2>
+
+<!-- DASHBOARD -->
+<div id="dashboardPage">
+  <div style="display:flex; gap:20px;">
+    <div class="card">Total Students: <b id="total">0</b></div>
+    <div class="card">Avg Marks: <b id="avg">0</b></div>
+  </div>
+</div>
+
+<!-- STUDENTS -->
+<div id="studentsPage" style="display:none;">
+
 <input id="name" placeholder="Name">
 <input id="class" placeholder="Class">
+<input id="section" placeholder="Section">
 <input id="roll" placeholder="Roll">
-<button onclick="addStudent()">Add Student</button>
+<input id="marks" type="number" placeholder="Marks">
 
-<hr>
-
-<h2>Add Marks</h2>
-<input id="studentId" placeholder="Student ID">
-<input id="subject" placeholder="Subject">
-<input id="marks" placeholder="Marks">
-<input id="total" placeholder="Total">
-<button onclick="addMarks()">Add Marks</button>
-
-<hr>
-
-<h2>Check Result</h2>
-<input id="checkId" placeholder="Student ID">
-<button onclick="getResult()">Show Result</button>
-
-<p id="result"></p>
-
-<!-- Firebase -->
-<script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore-compat.js"></script>
-
-<script>
-const firebaseConfig = {
-  // 👉 ekhane tor firebase config paste kor
-};
-
-firebase.initializeApp(firebaseConfig);
-const db = firebase.firestore();
-
-// Add Student
-function addStudent() {
-  let name = document.getElementById("name").value;
-  let className = document.getElementById("class").value;
-  let roll = document.getElementById("roll").value;
-
-  db.collection("students").add({
-    name, class: className, roll
-  }).then(() => {
-    alert("Student Added!");
-  });
-}
-
-// Add Marks
-function addMarks() {
-  let studentId = document.getElementById("studentId").value;
-  let subject = document.getElementById("subject").value;
-  let marks = Number(document.getElementById("marks").value);
-  let total = Number(document.getElementById("total").value);
-
-  db.collection("marks").add({
-    studentId, subject, marks, total
-  }).then(() => {
-    alert("Marks Added!");
-  });
-}
-
-// Get Result
-function getResult() {
-  let id = document.getElementById("checkId").value;
-
-  db.collection("marks")
-    .where("studentId", "==", id)
-    .get()
-    .then(snapshot => {
-      let totalMarks = 0;
-      let totalFull = 0;
-
-      snapshot.forEach(doc => {
-        let data = doc.data();
-        totalMarks += data.marks;
-        totalFull += data.total;
-      });
-
-      let percent = (totalMarks / totalFull) * 100;
-
-      let suggestion = percent < 50 
-        ? "⚠️ Weak - Practice needed"
-        : "✅ Good";
-
-      document.getElementById("result").innerHTML =
-        "Percentage: " + percent.toFixed(2) + "%<br>" + suggestion;
-    });
-}
-</script>
-
-<h2>📅 Attendance</h2>
-
-
-<select id="attStatus">
-  <option value="present">Present</option>
-  <option value="absent">Absent</option>
+<select id="attendance">
+  <option>Present</option>
+  <option>Absent</option>
+  <option>Late</option>
 </select>
 
-<button onclick="markAttendance()">Save Attendance</button>
+<button onclick="addStudents()">Add</button>
 
-<script>
+<br><br>
 
-// Load students for attendance dropdown
-function loadAttendanceStudents() {
-  db.collection("students").get().then(snapshot => {
-    let select = document.getElementById("attStudent");
+<input id="search" placeholder="Search..." onkeyup="applyFilters()">
+<input id="filterClass" placeholder="Class filter" onkeyup="applyFilters()">
+<input id="filterSection" placeholder="Section filter" onkeyup="applyFilters()">
 
-    snapshot.forEach(doc => {
-      let option = document.createElement("option");
-      option.value = doc.id;
-      option.text = doc.data().name;
+<div style="overflow-x:auto;">
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Class</th>
+<th>Section</th>
+<th>Roll</th>
+<th>Marks</th>
+<th>Attendance</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody id="table"></tbody>
+</table>
+</div>
 
-      select.appendChild(option);
-    });
-  });
-}
-window.onload = function () {
-  loadAttendanceStudents();
-  loadStudents(); // (marks dropdown এর জন্য যদি থাকে)
+</div>
+
+</div>
+</div>
+</div>
+
+<!-- 🔥 SCRIPT -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import { getFirestore, collection, addDoc, onSnapshot, deleteDoc, doc, updateDoc } 
+from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } 
+from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+
+// 🔥 CONFIG
+const firebaseConfig = {
+  apiKey: "AIzaSyCOL08Us-2m5w7rznnwUGudTz-QOxyi1l4",
+  authDomain: "school-management-system-93aba.firebaseapp.com",
+  projectId: "school-management-system-93aba"
 };
-// Save attendance
-function markAttendance() {
-  let studentId = document.getElementById("attStudent").value;
-  let status = document.getElementById("attStatus").value;
 
-  let today = new Date().toISOString().split("T")[0];
+const appFirebase = initializeApp(firebaseConfig);
+const db = getFirestore(appFirebase);
+const auth = getAuth(appFirebase);
 
-  db.collection("attendance").add({
-    studentId,
-    status,
-    date: today
-  }).then(() => {
-    alert("Attendance Saved!");
+let allData = [];
+
+// DOM
+const loginBox = document.getElementById("loginBox");
+const app = document.getElementById("app");
+
+// LOGIN
+window.login = async function() {
+  try {
+    await signInWithEmailAndPassword(
+      auth,
+      email.value,
+      password.value
+    );
+  } catch (e) {
+    alert(e.message);
+  }
+};
+
+// LOGOUT
+window.logout = () => signOut(auth);
+
+// SESSION
+onAuthStateChanged(auth, (user) => {
+  if (user) {
+    const name = user.email.split("@")[0];
+
+    document.getElementById("welcomeText").innerText =
+      "Welcome, " + name + " 👋";
+
+    loginBox.style.display = "none";
+    app.style.display = "block";
+
+    showPage("dashboard"); // 🔥 default page
+
+  } else {
+    loginBox.style.display = "block";
+    app.style.display = "none";
+  }
+});
+
+// 🔥 PAGE SWITCH (STEP 2)
+window.showPage = function(page) {
+  document.getElementById("dashboardPage").style.display = "none";
+  document.getElementById("studentsPage").style.display = "none";
+
+  if (page === "dashboard") {
+    document.getElementById("dashboardPage").style.display = "block";
+  }
+
+  if (page === "students") {
+    document.getElementById("studentsPage").style.display = "block";
+  }
+};
+
+// ADD
+window.addStudents = async function() {
+  const name = document.getElementById("name").value;
+  const cls = document.getElementById("class").value;
+  const section = document.getElementById("section").value;
+  const roll = document.getElementById("roll").value;
+  const marks = document.getElementById("marks").value;
+  const attendance = document.getElementById("attendance").value;
+
+  if (!name || !cls || !section || !roll) {
+    alert("Fill all fields");
+    return;
+  }
+
+  await addDoc(collection(db, "students"), {
+    name,
+    className: cls,
+    section,
+    roll,
+    marks,
+    attendance
   });
+};
+
+// LOAD
+onSnapshot(collection(db, "students"), snap => {
+  allData = [];
+  snap.forEach(d => allData.push({ id: d.id, ...d.data() }));
+  applyFilters();
+});
+
+// FILTER
+window.applyFilters = function() {
+  const s = search.value.toLowerCase();
+  const c = filterClass.value.toLowerCase();
+  const sec = filterSection.value.toLowerCase();
+
+  const filtered = allData.filter(d =>
+    d.name.toLowerCase().includes(s) &&
+    (c ? d.className.toLowerCase().includes(c) : true) &&
+    (sec ? d.section?.toLowerCase().includes(sec) : true)
+  );
+
+  render(filtered);
+};
+
+// RENDER
+function render(data) {
+  table.innerHTML = "";
+
+  let sum = 0;
+
+  data.forEach(d => {
+    sum += Number(d.marks || 0);
+
+    table.innerHTML += `
+<tr>
+<td>${d.name}</td>
+<td>${d.className}</td>
+<td>${d.section}</td>
+<td>${d.roll}</td>
+<td>${d.marks}</td>
+<td>${d.attendance}</td>
+<td>
+<button onclick="del('${d.id}')">Delete</button>
+<button onclick="edit('${d.id}','${d.name}','${d.marks}')">Edit</button>
+</td>
+</tr>`;
+  });
+
+  total.innerText = data.length;
+  avg.innerText = data.length ? (sum/data.length).toFixed(2) : 0;
 }
 
-// call on load
-loadAttendanceStudents();
+// DELETE
+window.del = id => deleteDoc(doc(db, "students", id));
+
+// EDIT
+window.edit = async (id, name, marks) => {
+  const n = prompt("Name", name);
+  const m = prompt("Marks", marks);
+  await updateDoc(doc(db, "students", id), { name:n, marks:m });
+};
 
 </script>
+
 </body>
 </html>
