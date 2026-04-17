@@ -1,348 +1,526 @@
 <!DOCTYPE html>
 <html>
 <head>
-<title>FH New Admin Panel</title>
+  <title>FH New Admin Panel</title>
 
-<style>
-body{
-  margin:0;
-  font-family:Arial;
-  background:#f4f6f9;
-}
+  <style>
+    * {
+      box-sizing: border-box;
+    }
 
-input, select, button{
-  padding:8px;
-  margin:5px;
-}
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #f4f6f9;
+      color: #2c3e50;
+    }
 
-button{
-  background:#3498db;
-  color:white;
-  border:none;
-  cursor:pointer;
-  border-radius:5px;
-}
+    input, select, button {
+      padding: 10px 12px;
+      border-radius: 8px;
+      border: 1px solid #dcdfe6;
+      font-size: 14px;
+      outline: none;
+    }
 
-table{
-  width:100%;
-  border-collapse:collapse;
-  margin-top:15px;
-  background:white;
-}
+    input:focus, select:focus {
+      border-color: #3498db;
+      box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.12);
+    }
 
-th, td{
-  border:1px solid #ddd;
-  padding:8px;
-  text-align:center;
-}
+    button {
+      background: #3498db;
+      color: white;
+      border: none;
+      cursor: pointer;
+      transition: 0.2s ease;
+      font-weight: 600;
+    }
 
-th{
-  background:#eee;
-}
+    button:hover {
+      background: #2980b9;
+    }
 
-.card{
-  background:white;
-  padding:20px;
-  border-radius:10px;
-  box-shadow:0 2px 5px rgba(0,0,0,0.1);
-  flex:1;
-}
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: white;
+    }
 
-/* LOGIN CENTER */
-#loginBox{
-  height:100vh;
-  display:flex;
-  justify-content:center;
-  align-items:center;
-}
+    th, td {
+      border: 1px solid #eef1f4;
+      padding: 12px;
+      text-align: center;
+    }
 
-#loginBox .loginCard{
-  background:white;
-  padding:30px;
-  border-radius:12px;
-  box-shadow:0 4px 15px rgba(0,0,0,0.1);
-  width:320px;
-  text-align:center;
-}
+    th {
+      background: #f8fafc;
+      font-weight: 700;
+    }
 
-#loginBox .loginCard input{
-  width:90%;
-  padding:10px;
-}
+    tr:hover {
+      background: #f9fbfd;
+    }
 
-#loginBox .loginCard button{
-  width:95%;
-  padding:10px;
-}
+    .card {
+      background: white;
+      padding: 22px;
+      border-radius: 14px;
+      box-shadow: 0 4px 18px rgba(0,0,0,0.06);
+      flex: 1;
+      min-width: 220px;
+    }
 
-#loginBox button{
-  width:95%;
-  padding:10px;
-}
+    /* LOGIN */
+    #loginBox {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: linear-gradient(135deg, #eef4ff, #f7f9fc);
+      z-index: 999;
+    }
 
-#studentsPage input,
-#studentsPage select,
-#studentsPage button{
-  width:auto;
-}
-</style>
+    #loginBox .loginCard {
+      width: 360px;
+      background: white;
+      padding: 32px 28px;
+      border-radius: 18px;
+      box-shadow: 0 10px 35px rgba(0,0,0,0.10);
+      text-align: center;
+    }
+
+    #loginBox h2 {
+      margin-top: 0;
+      margin-bottom: 22px;
+      color: #2c3e50;
+    }
+
+    #loginBox .loginCard input {
+      width: 100%;
+      margin: 8px 0;
+      padding: 12px;
+    }
+
+    #loginBox .loginCard button {
+      width: 100%;
+      margin-top: 10px;
+      padding: 12px;
+      border-radius: 10px;
+    }
+
+    /* APP */
+    #app {
+      min-height: 100vh;
+    }
+
+    .layout {
+      display: flex;
+      min-height: 100vh;
+    }
+
+    .sidebar {
+      width: 240px;
+      background: linear-gradient(180deg, #243447, #1b2838);
+      color: white;
+      padding: 22px 16px;
+      box-shadow: 2px 0 12px rgba(0,0,0,0.08);
+    }
+
+    .sidebar h2 {
+      margin-top: 0;
+      margin-bottom: 16px;
+      font-size: 24px;
+    }
+
+    .sidebar hr {
+      border: none;
+      border-top: 1px solid rgba(255,255,255,0.12);
+      margin: 14px 0 20px;
+    }
+
+    .sidebar p {
+      margin: 10px 0;
+      padding: 12px 14px;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: 0.2s ease;
+    }
+
+    .sidebar p:hover {
+      background: rgba(255,255,255,0.10);
+    }
+
+    .main {
+      flex: 1;
+      padding: 24px;
+      overflow: auto;
+    }
+
+    #welcomeText {
+      margin-top: 0;
+      margin-bottom: 22px;
+      font-size: 28px;
+    }
+
+    .statsRow {
+      display: flex;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+
+    .formRow,
+    .filterRow {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 14px;
+    }
+
+    .formRow input,
+    .formRow select,
+    .formRow button,
+    .filterRow input {
+      margin: 0;
+    }
+
+    .tableWrap {
+      overflow-x: auto;
+      background: white;
+      border-radius: 14px;
+      box-shadow: 0 4px 18px rgba(0,0,0,0.05);
+      overflow: hidden;
+      margin-top: 10px;
+    }
+
+    .actionBtn {
+      padding: 8px 14px;
+      border-radius: 8px;
+      font-size: 13px;
+      margin: 2px;
+    }
+
+    .deleteBtn {
+      background: #e74c3c;
+    }
+
+    .deleteBtn:hover {
+      background: #c0392b;
+    }
+
+    .editBtn {
+      background: #27ae60;
+    }
+
+    .editBtn:hover {
+      background: #1f8a4d;
+    }
+
+    @media (max-width: 768px) {
+      .layout {
+        flex-direction: column;
+      }
+
+      .sidebar {
+        width: 100%;
+      }
+
+      .main {
+        padding: 16px;
+      }
+
+      #welcomeText {
+        font-size: 22px;
+      }
+
+      .statsRow {
+        flex-direction: column;
+      }
+
+      .card {
+        min-width: 100%;
+      }
+
+      .formRow input,
+      .formRow select,
+      .formRow button,
+      .filterRow input {
+        width: 100%;
+      }
+
+      #loginBox .loginCard {
+        width: 92%;
+      }
+    }
+  </style>
 </head>
 
 <body>
 
-<!-- LOGIN -->
-<div id="loginBox">
-  <div class="loginCard">
-    <h2 id="userTitle">🔐 Login</h2>
-
-    <input id="email" placeholder="Email"><br><br>
-    <input id="password" type="password" placeholder="Password"><br><br>
-
-    <button onclick="login()">Login</button>
+  <!-- LOGIN -->
+  <div id="loginBox">
+    <div class="loginCard">
+      <h2 id="userTitle">🔐 Login</h2>
+      <input id="email" placeholder="Email">
+      <input id="password" type="password" placeholder="Password">
+      <button onclick="login()">Login</button>
+    </div>
   </div>
-</div>
 
-<!-- ADMIN PANEL -->
-<div id="app" style="display:none;">
+  <!-- ADMIN PANEL -->
+  <div id="app" style="display:none;">
+    <div class="layout">
 
-<div style="display:flex; height:100vh;">
+      <!-- SIDEBAR -->
+      <div class="sidebar">
+        <h2>🎓 FH Admin</h2>
+        <hr>
 
-<!-- SIDEBAR -->
-<div style="width:220px; background:#2c3e50; color:white; padding:15px;">
-<h2>🎓 FH Admin</h2>
-<hr>
+        <p onclick="showPage('dashboard')">📊 Dashboard</p>
+        <p onclick="showPage('students')">👨‍🎓 Students</p>
+        <p onclick="logout()">🚪 Logout</p>
+      </div>
 
-<p onclick="showPage('dashboard')" style="cursor:pointer;">📊 Dashboard</p>
-<p onclick="showPage('students')" style="cursor:pointer;">👨‍🎓 Students</p>
-<p onclick="logout()" style="cursor:pointer;">🚪 Logout</p>
-</div>
+      <!-- MAIN -->
+      <div class="main">
+        <h2 id="welcomeText">Welcome</h2>
 
-<!-- MAIN -->
-<div style="flex:1; padding:20px; overflow:auto;">
+        <!-- DASHBOARD -->
+        <div id="dashboardPage">
+          <div class="statsRow">
+            <div class="card">Total Students: <b id="total">0</b></div>
+            <div class="card">Avg Marks: <b id="avg">0</b></div>
+          </div>
+        </div>
 
-<h2 id="welcomeText">Welcome</h2>
+        <!-- STUDENTS -->
+        <div id="studentsPage" style="display:none;">
 
-<!-- DASHBOARD -->
-<div id="dashboardPage">
-<div style="display:flex; gap:20px;">
-<div class="card">Total Students: <b id="total">0</b></div>
-<div class="card">Avg Marks: <b id="avg">0</b></div>
-</div>
-</div>
+          <div class="formRow">
+            <input id="name" placeholder="Name">
+            <input id="class" placeholder="Class">
+            <input id="section" placeholder="Section">
+            <input id="roll" placeholder="Roll">
+            <input id="marks" type="number" placeholder="Marks">
 
-<!-- STUDENTS -->
-<div id="studentsPage" style="display:none;">
-Students Page
-</div>
+            <select id="attendance">
+              <option>Present</option>
+              <option>Absent</option>
+              <option>Late</option>
+            </select>
 
-</div>
-</div>
-</div>
+            <button onclick="addStudents()">Add</button>
+          </div>
 
-</body>
+          <div class="filterRow">
+            <input id="search" placeholder="Search..." onkeyup="applyFilters()">
+            <input id="filterClass" placeholder="Class filter" onkeyup="applyFilters()">
+            <input id="filterSection" placeholder="Section filter" onkeyup="applyFilters()">
+          </div>
 
-<input id="name" placeholder="Name">
-<input id="class" placeholder="Class">
-<input id="section" placeholder="Section">
-<input id="roll" placeholder="Roll">
-<input id="marks" type="number" placeholder="Marks">
+          <div class="tableWrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Class</th>
+                  <th>Section</th>
+                  <th>Roll</th>
+                  <th>Marks</th>
+                  <th>Attendance</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="table"></tbody>
+            </table>
+          </div>
 
-<select id="attendance">
-  <option>Present</option>
-  <option>Absent</option>
-  <option>Late</option>
-</select>
+        </div>
+      </div>
+    </div>
+  </div>
 
-<button onclick="addStudents()">Add</button>
+  <!-- SCRIPT -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import {
+      getFirestore,
+      collection,
+      addDoc,
+      onSnapshot,
+      deleteDoc,
+      doc,
+      updateDoc
+    } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-<br><br>
+    import {
+      getAuth,
+      signInWithEmailAndPassword,
+      onAuthStateChanged,
+      signOut
+    } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
-<input id="search" placeholder="Search..." onkeyup="applyFilters()">
-<input id="filterClass" placeholder="Class filter" onkeyup="applyFilters()">
-<input id="filterSection" placeholder="Section filter" onkeyup="applyFilters()">
+    const firebaseConfig = {
+      apiKey: "AIzaSyCOL08Us-2m5w7rznnwUGudTz-QOxyi1l4",
+      authDomain: "school-management-system-93aba.firebaseapp.com",
+      projectId: "school-management-system-93aba"
+    };
 
-<div style="overflow-x:auto;">
-<table>
-<thead>
-<tr>
-<th>Name</th>
-<th>Class</th>
-<th>Section</th>
-<th>Roll</th>
-<th>Marks</th>
-<th>Attendance</th>
-<th>Action</th>
-</tr>
-</thead>
-<tbody id="table"></tbody>
-</table>
-</div>
+    const appFirebase = initializeApp(firebaseConfig);
+    const db = getFirestore(appFirebase);
+    const auth = getAuth(appFirebase);
 
-</div>
+    let allData = [];
 
-</div>
-</div>
-</div>
+    const loginBox = document.getElementById("loginBox");
+    const app = document.getElementById("app");
 
-<!-- 🔥 SCRIPT -->
-<script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getFirestore, collection, addDoc, onSnapshot, deleteDoc, doc, updateDoc } 
-from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } 
-from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+    // LOGIN
+    window.login = async function () {
+      try {
+        await signInWithEmailAndPassword(auth, email.value, password.value);
+      } catch (e) {
+        alert(e.message);
+      }
+    };
 
-// 🔥 CONFIG
-const firebaseConfig = {
-  apiKey: "AIzaSyCOL08Us-2m5w7rznnwUGudTz-QOxyi1l4",
-  authDomain: "school-management-system-93aba.firebaseapp.com",
-  projectId: "school-management-system-93aba"
-};
+    // LOGOUT
+    window.logout = () => signOut(auth);
 
-const appFirebase = initializeApp(firebaseConfig);
-const db = getFirestore(appFirebase);
-const auth = getAuth(appFirebase);
+    // SESSION
+    onAuthStateChanged(auth, (user) => {
+      if (user) {
+        const name = user.email.split("@")[0];
 
-let allData = [];
+        document.getElementById("welcomeText").innerText = "Welcome, " + name + " 👋";
 
-// DOM
-const loginBox = document.getElementById("loginBox");
-const app = document.getElementById("app");
+        loginBox.style.display = "none";
+        app.style.display = "block";
 
-// LOGIN
-window.login = async function() {
-  try {
-    await signInWithEmailAndPassword(
-      auth,
-      email.value,
-      password.value
-    );
-  } catch (e) {
-    alert(e.message);
-  }
-};
+        showPage("dashboard");
+      } else {
+        loginBox.style.display = "flex";
+        app.style.display = "none";
+      }
+    });
 
-// LOGOUT
-window.logout = () => signOut(auth);
+    // PAGE SWITCH
+    window.showPage = function (page) {
+      document.getElementById("dashboardPage").style.display = "none";
+      document.getElementById("studentsPage").style.display = "none";
 
-// SESSION
-onAuthStateChanged(auth, (user) => {
-  if (user) {
-    const name = user.email.split("@")[0];
+      if (page === "dashboard") {
+        document.getElementById("dashboardPage").style.display = "block";
+      }
 
-    document.getElementById("welcomeText").innerText =
-      "Welcome, " + name + " 👋";
+      if (page === "students") {
+        document.getElementById("studentsPage").style.display = "block";
+      }
+    };
 
-    loginBox.style.display = "none";
-    app.style.display = "block";
+    // ADD STUDENT
+    window.addStudents = async function () {
+      const name = document.getElementById("name").value;
+      const cls = document.getElementById("class").value;
+      const section = document.getElementById("section").value;
+      const roll = document.getElementById("roll").value;
+      const marks = document.getElementById("marks").value;
+      const attendance = document.getElementById("attendance").value;
 
-    showPage("dashboard"); // 🔥 default page
+      if (!name || !cls || !section || !roll) {
+        alert("Fill all fields");
+        return;
+      }
 
-  } else {
-    loginBox.style.display = "block";
-    app.style.display = "none";
-  }
-});
+      await addDoc(collection(db, "students"), {
+        name,
+        className: cls,
+        section,
+        roll,
+        marks,
+        attendance
+      });
 
-// 🔥 PAGE SWITCH (STEP 2)
-window.showPage = function(page) {
-  document.getElementById("dashboardPage").style.display = "none";
-  document.getElementById("studentsPage").style.display = "none";
+      document.getElementById("name").value = "";
+      document.getElementById("class").value = "";
+      document.getElementById("section").value = "";
+      document.getElementById("roll").value = "";
+      document.getElementById("marks").value = "";
+      document.getElementById("attendance").value = "Present";
+    };
 
-  if (page === "dashboard") {
-    document.getElementById("dashboardPage").style.display = "block";
-  }
+    // LOAD DATA
+    onSnapshot(collection(db, "students"), (snap) => {
+      allData = [];
+      snap.forEach(d => allData.push({ id: d.id, ...d.data() }));
+      applyFilters();
+    });
 
-  if (page === "students") {
-    document.getElementById("studentsPage").style.display = "block";
-  }
-};
+    // FILTER
+    window.applyFilters = function () {
+      const s = document.getElementById("search").value.toLowerCase();
+      const c = document.getElementById("filterClass").value.toLowerCase();
+      const sec = document.getElementById("filterSection").value.toLowerCase();
 
-// ADD
-window.addStudents = async function() {
-  const name = document.getElementById("name").value;
-  const cls = document.getElementById("class").value;
-  const section = document.getElementById("section").value;
-  const roll = document.getElementById("roll").value;
-  const marks = document.getElementById("marks").value;
-  const attendance = document.getElementById("attendance").value;
+      const filtered = allData.filter(d =>
+        (d.name || "").toLowerCase().includes(s) &&
+        (c ? (d.className || "").toLowerCase().includes(c) : true) &&
+        (sec ? (d.section || "").toLowerCase().includes(sec) : true)
+      );
 
-  if (!name || !cls || !section || !roll) {
-    alert("Fill all fields");
-    return;
-  }
+      render(filtered);
+    };
 
-  await addDoc(collection(db, "students"), {
-    name,
-    className: cls,
-    section,
-    roll,
-    marks,
-    attendance
-  });
-};
+    // RENDER
+    function render(data) {
+      const table = document.getElementById("table");
+      const total = document.getElementById("total");
+      const avg = document.getElementById("avg");
 
-// LOAD
-onSnapshot(collection(db, "students"), snap => {
-  allData = [];
-  snap.forEach(d => allData.push({ id: d.id, ...d.data() }));
-  applyFilters();
-});
+      table.innerHTML = "";
 
-// FILTER
-window.applyFilters = function() {
-  const s = search.value.toLowerCase();
-  const c = filterClass.value.toLowerCase();
-  const sec = filterSection.value.toLowerCase();
+      let sum = 0;
 
-  const filtered = allData.filter(d =>
-    d.name.toLowerCase().includes(s) &&
-    (c ? d.className.toLowerCase().includes(c) : true) &&
-    (sec ? d.section?.toLowerCase().includes(sec) : true)
-  );
+      data.forEach(d => {
+        sum += Number(d.marks || 0);
 
-  render(filtered);
-};
+        table.innerHTML += `
+          <tr>
+            <td>${d.name || ""}</td>
+            <td>${d.className || ""}</td>
+            <td>${d.section || ""}</td>
+            <td>${d.roll || ""}</td>
+            <td>${d.marks || ""}</td>
+            <td>${d.attendance || ""}</td>
+            <td>
+              <button class="actionBtn deleteBtn" onclick="del('${d.id}')">Delete</button>
+              <button class="actionBtn editBtn" onclick="edit('${d.id}','${d.name || ""}','${d.marks || ""}')">Edit</button>
+            </td>
+          </tr>
+        `;
+      });
 
-// RENDER
-function render(data) {
-  table.innerHTML = "";
+      total.innerText = data.length;
+      avg.innerText = data.length ? (sum / data.length).toFixed(2) : 0;
+    }
 
-  let sum = 0;
+    // DELETE
+    window.del = (id) => deleteDoc(doc(db, "students", id));
 
-  data.forEach(d => {
-    sum += Number(d.marks || 0);
+    // EDIT
+    window.edit = async (id, name, marks) => {
+      const n = prompt("Name", name);
+      const m = prompt("Marks", marks);
 
-    table.innerHTML += `
-<tr>
-<td>${d.name}</td>
-<td>${d.className}</td>
-<td>${d.section}</td>
-<td>${d.roll}</td>
-<td>${d.marks}</td>
-<td>${d.attendance}</td>
-<td>
-<button onclick="del('${d.id}')">Delete</button>
-<button onclick="edit('${d.id}','${d.name}','${d.marks}')">Edit</button>
-</td>
-</tr>`;
-  });
+      if (n === null || m === null) return;
 
-  total.innerText = data.length;
-  avg.innerText = data.length ? (sum/data.length).toFixed(2) : 0;
-}
-
-// DELETE
-window.del = id => deleteDoc(doc(db, "students", id));
-
-// EDIT
-window.edit = async (id, name, marks) => {
-  const n = prompt("Name", name);
-  const m = prompt("Marks", marks);
-  await updateDoc(doc(db, "students", id), { name:n, marks:m });
-};
-
-</script>
+      await updateDoc(doc(db, "students", id), {
+        name: n,
+        marks: m
+      });
+    };
+  </script>
 
 </body>
 </html>
