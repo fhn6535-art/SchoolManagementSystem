@@ -72,7 +72,6 @@ th {
 <!-- Search -->
 <input id="filterClass" placeholder="Filter by Class" onkeyup="applyFilters()">
 <input id="filterSection" placeholder="Filter by Section" onkeyup="applyFilters()">
-<input id="search" placeholder="Search by name..." onkeyup="filterData()">
 <input id="search" placeholder="Search by name..." onkeyup="applyFilters()">
     
 <!-- Export -->
@@ -176,8 +175,7 @@ window.addStudents = async function() {
     const roll = rollInput.value;
     const marks = marksInput.value;
     const attendance = attendanceInput.value;
-    section: sectionInput.value
-    
+      
     if (!name || !cls || !section|| !roll) {
       alert("Please fill Name, Class, Section and Roll");
       return;
