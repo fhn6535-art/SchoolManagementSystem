@@ -1,0 +1,1184 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>FH Secure School Panel</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #f4f6f9;
+      color: #2c3e50;
+    }
+
+    input, select, button, textarea {
+      padding: 10px 12px;
+      border-radius: 8px;
+      border: 1px solid #dcdfe6;
+      font-size: 14px;
+      outline: none;
+    }
+
+    input:focus, select:focus, textarea:focus {
+      border-color: #3498db;
+      box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.12);
+    }
+
+    button {
+      background: #3498db;
+      color: white;
+      border: none;
+      cursor: pointer;
+      transition: 0.2s ease;
+      font-weight: 600;
+    }
+
+    button:hover {
+      background: #2980b9;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: white;
+    }
+
+    th, td {
+      border: 1px solid #eef1f4;
+      padding: 12px;
+      text-align: center;
+    }
+
+    th {
+      background: #f8fafc;
+      font-weight: 700;
+    }
+
+    tr:hover {
+      background: #f9fbfd;
+    }
+
+    .card {
+      background: white;
+      padding: 22px;
+      border-radius: 14px;
+      box-shadow: 0 4px 18px rgba(0,0,0,0.06);
+      flex: 1;
+      min-width: 220px;
+    }
+
+    #loginBox {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: linear-gradient(135deg, #eef4ff, #f7f9fc);
+      z-index: 999;
+    }
+
+    #loginBox .loginCard {
+      width: 360px;
+      background: white;
+      padding: 32px 28px;
+      border-radius: 18px;
+      box-shadow: 0 10px 35px rgba(0,0,0,0.10);
+      text-align: center;
+    }
+
+    #loginBox h2 {
+      margin-top: 0;
+      margin-bottom: 22px;
+      color: #2c3e50;
+    }
+
+    #loginBox .loginCard input {
+      width: 100%;
+      margin: 8px 0;
+      padding: 12px;
+    }
+
+    #loginBox .loginCard button {
+      width: 100%;
+      margin-top: 10px;
+      padding: 12px;
+      border-radius: 10px;
+    }
+
+    #app {
+      min-height: 100vh;
+    }
+
+    .layout {
+      display: flex;
+      min-height: 100vh;
+    }
+
+    .sidebar {
+      width: 240px;
+      background: linear-gradient(180deg, #243447, #1b2838);
+      color: white;
+      padding: 22px 16px;
+      box-shadow: 2px 0 12px rgba(0,0,0,0.08);
+    }
+
+    .sidebar h2 {
+      margin-top: 0;
+      margin-bottom: 16px;
+      font-size: 24px;
+    }
+
+    .sidebar hr {
+      border: none;
+      border-top: 1px solid rgba(255,255,255,0.12);
+      margin: 14px 0 20px;
+    }
+
+    .sidebar p {
+      margin: 10px 0;
+      padding: 12px 14px;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: 0.2s ease;
+    }
+
+    .sidebar p:hover {
+      background: rgba(255,255,255,0.10);
+    }
+
+    .main {
+      flex: 1;
+      padding: 24px;
+      overflow: auto;
+    }
+
+    #welcomeText {
+      margin-top: 0;
+      margin-bottom: 22px;
+      font-size: 28px;
+    }
+
+    .statsRow {
+      display: flex;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+
+    .formRow,
+    .filterRow {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 14px;
+    }
+
+    .formRow input,
+    .formRow select,
+    .formRow button,
+    .filterRow input {
+      margin: 0;
+    }
+
+    .tableWrap {
+      overflow-x: auto;
+      background: white;
+      border-radius: 14px;
+      box-shadow: 0 4px 18px rgba(0,0,0,0.05);
+      overflow: hidden;
+      margin-top: 10px;
+    }
+
+    .actionBtn {
+      padding: 8px 14px;
+      border-radius: 8px;
+      font-size: 13px;
+      margin: 2px;
+    }
+
+    .deleteBtn {
+      background: #e74c3c;
+    }
+
+    .deleteBtn:hover {
+      background: #c0392b;
+    }
+
+    .editBtn {
+      background: #27ae60;
+    }
+
+    .editBtn:hover {
+      background: #1f8a4d;
+    }
+
+    .muted {
+      color: #6b7280;
+      font-size: 13px;
+    }
+
+    .recommend-low {
+      color: #c0392b;
+      font-weight: 700;
+    }
+
+    .recommend-mid {
+      color: #d68910;
+      font-weight: 700;
+    }
+
+    .recommend-good {
+      color: #1f8a4d;
+      font-weight: 700;
+    }
+
+    .subjectHelp {
+      margin-top: 8px;
+      font-size: 13px;
+      color: #6b7280;
+    }
+
+    @media (max-width: 768px) {
+      .layout {
+        flex-direction: column;
+      }
+
+      .sidebar {
+        width: 100%;
+      }
+
+      .main {
+        padding: 16px;
+      }
+
+      #welcomeText {
+        font-size: 22px;
+      }
+
+      .statsRow {
+        flex-direction: column;
+      }
+
+      .card {
+        min-width: 100%;
+      }
+
+      .formRow input,
+      .formRow select,
+      .formRow button,
+      .filterRow input {
+        width: 100%;
+      }
+
+      #loginBox .loginCard {
+        width: 92%;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- LOGIN -->
+  <div id="loginBox">
+    <div class="loginCard">
+      <h2>🔐 Login</h2>
+      <input id="email" placeholder="Email">
+      <input id="password" type="password" placeholder="Password">
+      <button onclick="login()">Login</button>
+      <p class="muted">Login role will be detected automatically</p>
+    </div>
+  </div>
+
+  <!-- APP -->
+  <div id="app" style="display:none;">
+    <div class="layout">
+
+      <!-- SIDEBAR -->
+      <div class="sidebar" id="sidebarMenu">
+        <h2>🎓 School Panel</h2>
+        <hr>
+        <p onclick="showPage('dashboard')">📊 Dashboard</p>
+        <p onclick="showPage('students')">👨‍🎓 Students</p>
+        <p onclick="logout()">🚪 Logout</p>
+      </div>
+
+      <!-- MAIN -->
+      <div class="main">
+        <h2 id="welcomeText">Welcome</h2>
+
+        <!-- DASHBOARD -->
+        <div id="dashboardPage">
+          <div class="statsRow">
+            <div class="card">
+              <h3>Student Info</h3>
+              <p><b>Name:</b> <span id="dashName">-</span></p>
+              <p><b>Class:</b> <span id="dashClass">-</span></p>
+              <p><b>Section:</b> <span id="dashSection">-</span></p>
+              <p><b>Roll:</b> <span id="dashRoll">-</span></p>
+            </div>
+
+            <div class="card">
+              <h3>Attendance</h3>
+              <p style="font-size:28px; font-weight:bold;" id="dashAttendance">0%</p>
+              <p class="subjectHelp">Student attendance percentage</p>
+            </div>
+          </div>
+
+          <div class="card" style="margin-top:20px;">
+            <h3>Subject Performance</h3>
+            <div class="tableWrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Subject</th>
+                    <th>Class Mark</th>
+                    <th>Quiz Mark</th>
+                    <th>Exam Mark</th>
+                    <th>Total %</th>
+                    <th>Recommendation</th>
+                  </tr>
+                </thead>
+                <tbody id="subjectTable"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- STUDENTS -->
+        <div id="studentsPage" style="display:none;">
+
+          <div id="studentFormArea" class="formRow">
+            <input id="name" placeholder="Name">
+            <input id="studentClass" placeholder="Class">
+            <input id="section" placeholder="Section">
+            <input id="roll" placeholder="Roll">
+            <input id="studentEmail" placeholder="Student Email">
+            <input id="attendancePercent" type="number" placeholder="Attendance %">
+            <input id="marks" type="number" placeholder="Overall Marks (optional)">
+
+            <select id="attendance">
+              <option>Present</option>
+              <option>Absent</option>
+              <option>Late</option>
+            </select>
+
+            <button onclick="addStudents()">Add</button>
+          </div>
+
+          <div id="subjectFormArea" class="card" style="margin-bottom:16px;">
+            <h3>Subject Marks Setup</h3>
+            <div class="tableWrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Subject</th>
+                    <th>Class Mark</th>
+                    <th>Quiz Mark</th>
+                    <th>Exam Mark</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>Math</td>
+                    <td><input id="mathClassMark" type="number" placeholder="0"></td>
+                    <td><input id="mathQuizMark" type="number" placeholder="0"></td>
+                    <td><input id="mathExamMark" type="number" placeholder="0"></td>
+                  </tr>
+                  <tr>
+                    <td>English</td>
+                    <td><input id="englishClassMark" type="number" placeholder="0"></td>
+                    <td><input id="englishQuizMark" type="number" placeholder="0"></td>
+                    <td><input id="englishExamMark" type="number" placeholder="0"></td>
+                  </tr>
+                  <tr>
+                    <td>Bangla</td>
+                    <td><input id="banglaClassMark" type="number" placeholder="0"></td>
+                    <td><input id="banglaQuizMark" type="number" placeholder="0"></td>
+                    <td><input id="banglaExamMark" type="number" placeholder="0"></td>
+                  </tr>
+                  <tr>
+                    <td>Science</td>
+                    <td><input id="scienceClassMark" type="number" placeholder="0"></td>
+                    <td><input id="scienceQuizMark" type="number" placeholder="0"></td>
+                    <td><input id="scienceExamMark" type="number" placeholder="0"></td>
+                  </tr>
+                  <tr>
+                    <td>General Knowledge</td>
+                    <td><input id="generalKnowledgeClassMark" type="number" placeholder="0"></td>
+                    <td><input id="generalKnowledgeQuizMark" type="number" placeholder="0"></td>
+                    <td><input id="generalKnowledgeExamMark" type="number" placeholder="0"></td>
+                  </tr>
+                  <tr>
+                    <td>Islamic Education</td>
+                    <td><input id="islamicEducationClassMark" type="number" placeholder="0"></td>
+                    <td><input id="islamicEducationQuizMark" type="number" placeholder="0"></td>
+                    <td><input id="islamicEducationExamMark" type="number" placeholder="0"></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="filterRow">
+            <input id="search" placeholder="Search..." onkeyup="applyFilters()">
+            <input id="filterClass" placeholder="Class filter" onkeyup="applyFilters()">
+            <input id="filterSection" placeholder="Section filter" onkeyup="applyFilters()">
+          </div>
+
+          <div id="downloadArea" style="margin: 10px 0 15px 0;">
+            <button onclick="downloadCSV()">⬇ Download CSV</button>
+          </div>
+
+          <div class="tableWrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Class</th>
+                  <th>Section</th>
+                  <th>Roll</th>
+                  <th>Student Email</th>
+                  <th>Marks</th>
+                  <th>Attendance</th>
+                  <th>Attendance %</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="table"></tbody>
+            </table>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import {
+      getFirestore,
+      collection,
+      addDoc,
+      onSnapshot,
+      deleteDoc,
+      doc,
+      updateDoc,
+      getDoc,
+      query,
+      where
+    } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+    import {
+      getAuth,
+      signInWithEmailAndPassword,
+      onAuthStateChanged,
+      signOut
+    } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyCOL08Us-2m5w7rznnwUGudTz-QOxyi1l4",
+      authDomain: "school-management-system-93aba.firebaseapp.com",
+      projectId: "school-management-system-93aba"
+    };
+
+    const appFirebase = initializeApp(firebaseConfig);
+    const db = getFirestore(appFirebase);
+    const auth = getAuth(appFirebase);
+
+    let allData = [];
+    let currentRole = "";
+    let currentUserEmail = "";
+    let currentUserUid = "";
+    let currentStudentId = "";
+    let unsubscribeStudents = null;
+
+    const loginBox = document.getElementById("loginBox");
+    const app = document.getElementById("app");
+    const welcomeText = document.getElementById("welcomeText");
+    const sidebarMenu = document.getElementById("sidebarMenu");
+    const studentFormArea = document.getElementById("studentFormArea");
+    const subjectFormArea = document.getElementById("subjectFormArea");
+    const downloadArea = document.getElementById("downloadArea");
+
+    const SUBJECT_KEYS = [
+      "math",
+      "english",
+      "bangla",
+      "science",
+      "generalKnowledge",
+      "islamicEducation"
+    ];
+
+    window.login = async function () {
+      const userEmail = document.getElementById("email").value.trim();
+      const userPassword = document.getElementById("password").value.trim();
+
+      if (!userEmail || !userPassword) {
+        alert("Enter email and password");
+        return;
+      }
+
+      try {
+        await signInWithEmailAndPassword(auth, userEmail, userPassword);
+      } catch (e) {
+        alert("Login failed: " + e.message);
+      }
+    };
+
+    window.logout = async function () {
+      try {
+        if (unsubscribeStudents) {
+          unsubscribeStudents();
+          unsubscribeStudents = null;
+        }
+        await signOut(auth);
+      } catch (e) {
+        alert("Logout failed: " + e.message);
+      }
+    };
+
+    window.showPage = function (page) {
+      document.getElementById("dashboardPage").style.display = "none";
+      document.getElementById("studentsPage").style.display = "none";
+
+      if (page === "dashboard") {
+        document.getElementById("dashboardPage").style.display = "block";
+      }
+
+      if (page === "students") {
+        document.getElementById("studentsPage").style.display = "block";
+      }
+    };
+
+    onAuthStateChanged(auth, async (user) => {
+      if (!user) {
+        loginBox.style.display = "flex";
+        app.style.display = "none";
+        currentRole = "";
+        currentUserEmail = "";
+        currentUserUid = "";
+        currentStudentId = "";
+        allData = [];
+
+        if (unsubscribeStudents) {
+          unsubscribeStudents();
+          unsubscribeStudents = null;
+        }
+
+        return;
+      }
+
+      try {
+        currentUserEmail = user.email || "";
+        currentUserUid = user.uid;
+
+        const userRef = doc(db, "users", user.uid);
+        const userSnap = await getDoc(userRef);
+
+        if (!userSnap.exists()) {
+          alert("No role assigned for this user");
+          await signOut(auth);
+          return;
+        }
+
+        const userData = userSnap.data();
+        currentRole = userData.role || "";
+        const displayName = userData.name || currentUserEmail;
+        currentStudentId = userData.studentId || currentUserEmail;
+
+        loginBox.style.display = "none";
+        app.style.display = "block";
+
+        setupRoleUI(displayName);
+        loadStudents();
+      } catch (error) {
+        alert("Role check failed: " + error.message);
+      }
+    });
+
+    function setupRoleUI(displayName) {
+      if (currentRole === "admin") {
+        welcomeText.innerText = "Welcome Admin 👑";
+
+        sidebarMenu.innerHTML = `
+          <h2>👑 Admin Panel</h2>
+          <hr>
+          <p onclick="showPage('dashboard')">📊 Dashboard</p>
+          <p onclick="showPage('students')">👨‍🎓 Students</p>
+          <p onclick="logout()">🚪 Logout</p>
+        `;
+
+        studentFormArea.style.display = "flex";
+        subjectFormArea.style.display = "block";
+        downloadArea.style.display = "block";
+        showPage("dashboard");
+      }
+
+      else if (currentRole === "teacher") {
+        welcomeText.innerText = "Welcome ${displayName} 👨‍🏫";
+
+        sidebarMenu.innerHTML = `
+          <h2>👨‍🏫 Teacher Panel</h2>
+          <hr>
+          <p onclick="showPage('students')">👨‍🎓 Students</p>
+          <p onclick="logout()">🚪 Logout</p>
+        `;
+
+        studentFormArea.style.display = "flex";
+        subjectFormArea.style.display = "block";
+        downloadArea.style.display = "block";
+        showPage("students");
+      }
+
+      else if (currentRole === "student") {
+        welcomeText.innerText = "Welcome ${displayName} 🎓";
+
+        sidebarMenu.innerHTML = `
+          <h2>🎓 Student Panel</h2>
+          <hr>
+          <p onclick="showPage('dashboard')">📄 My Dashboard</p>
+          <p onclick="showPage('students')">📋 My Record</p>
+          <p onclick="logout()">🚪 Logout</p>
+        `;
+
+        studentFormArea.style.display = "none";
+        subjectFormArea.style.display = "none";
+        downloadArea.style.display = "none";
+        showPage("dashboard");
+      }
+
+      else {
+        alert("Invalid role found");
+        logout();
+      }
+    }
+
+    function loadStudents() {
+      if (unsubscribeStudents) {
+        unsubscribeStudents();
+        unsubscribeStudents = null;
+      }
+
+      let ref;
+
+      if (currentRole === "student") {
+        ref = query(
+          collection(db, "students"),
+          where("studentId", "==", currentStudentId)
+        );
+      } else {
+        ref = collection(db, "students");
+      }
+
+      unsubscribeStudents = onSnapshot(ref, (snap) => {
+        allData = [];
+        snap.forEach(d => allData.push({ id: d.id, ...d.data() }));
+        applyFilters();
+
+        if (currentRole === "student" && allData.length > 0) {
+          renderStudentDashboard(allData[0]);
+        }
+
+        if ((currentRole === "admin" || currentRole === "teacher") && allData.length > 0) {
+          renderAdminTeacherDashboard(allData);
+        }
+      }, (error) => {
+        alert("Student data load failed: " + error.message);
+      });
+    }
+
+    function renderAdminTeacherDashboard(data) {
+      document.getElementById("dashName").innerText = "All Students";
+      document.getElementById("dashClass").innerText = "-";
+      document.getElementById("dashSection").innerText = "-";
+      document.getElementById("dashRoll").innerText = data.length;
+
+      const totalAttendance = data.reduce((sum, item) => sum + Number(item.attendancePercent || 0), 0);
+      const avgAttendance = data.length ? (totalAttendance / data.length).toFixed(2) : 0;
+      document.getElementById("dashAttendance").innerText = avgAttendance + "%";
+
+      const subjectTable = document.getElementById("subjectTable");
+      subjectTable.innerHTML = "";
+
+      const subjectTotals = {};
+
+      SUBJECT_KEYS.forEach(subject => {
+        subjectTotals[subject] = {
+          classMark: 0,
+          quizMark: 0,
+          examMark: 0,
+          count: 0
+        };
+      });
+
+      data.forEach(student => {
+        const subjects = student.subjects || {};
+        SUBJECT_KEYS.forEach(subject => {
+          const item = subjects[subject] || {};
+          subjectTotals[subject].classMark += Number(item.classMark || 0);
+          subjectTotals[subject].quizMark += Number(item.quizMark || 0);
+          subjectTotals[subject].examMark += Number(item.examMark || 0);
+          subjectTotals[subject].count += 1;
+        });
+      });
+
+      SUBJECT_KEYS.forEach(subject => {
+        const item = subjectTotals[subject];
+        const count = item.count || 1;
+        const classMark = (item.classMark / count).toFixed(2);
+        const quizMark = (item.quizMark / count).toFixed(2);
+        const examMark = (item.examMark / count).toFixed(2);
+        const total = (Number(classMark) + Number(quizMark) + Number(examMark)).toFixed(2);
+        const recommendation = getRecommendation(Number(total));
+
+        subjectTable.innerHTML += `
+          <tr>
+            <td>${formatSubjectName(subject)}</td>
+            <td>${classMark}</td>
+            <td>${quizMark}</td>
+            <td>${examMark}</td>
+            <td>${total}%</td>
+            <td class="${recommendation.className}">${recommendation.text}</td>
+          </tr>
+        `;
+      });
+    }
+
+    function renderStudentDashboard(student) {
+      if (!student) return;
+
+      document.getElementById("dashName").innerText = student.name || "-";
+      document.getElementById("dashClass").innerText = student.className || "-";
+      document.getElementById("dashSection").innerText = student.section || "-";
+      document.getElementById("dashRoll").innerText = student.roll || "-";
+      document.getElementById("dashAttendance").innerText = (student.attendancePercent || 0) + "%";
+
+      const subjectTable = document.getElementById("subjectTable");
+      subjectTable.innerHTML = "";
+
+      const subjects = student.subjects || {};
+
+      SUBJECT_KEYS.forEach(subjectName => {
+        const sub = subjects[subjectName] || {};
+
+        const classMark = Number(sub.classMark || 0);
+        const quizMark = Number(sub.quizMark || 0);
+        const examMark = Number(sub.examMark || 0);
+
+        const total = classMark + quizMark + examMark;
+        const recommendation = getRecommendation(total);
+
+        subjectTable.innerHTML += `
+          <tr>
+            <td>${formatSubjectName(subjectName)}</td>
+            <td>${classMark}</td>
+            <td>${quizMark}</td>
+            <td>${examMark}</td>
+            <td>${total}%</td>
+            <td class="${recommendation.className}">${recommendation.text}</td>
+          </tr>
+        `;
+      });
+    }
+
+    function getRecommendation(total) {
+      if (total < 40) {
+        return {
+          text: "More exercise needed",
+          className: "recommend-low"
+        };
+      }
+
+      if (total < 60) {
+        return {
+          text: "Needs improvement",
+          className: "recommend-mid"
+        };
+      }
+
+      return {
+        text: "Good",
+        className: "recommend-good"
+      };
+    }
+
+    function formatSubjectName(name) {
+      return name
+        .replace(/([A-Z])/g, " $1")
+        .replace(/^./, str => str.toUpperCase());
+    }
+
+    window.addStudents = async function () {
+      if (currentRole !== "admin" && currentRole !== "teacher") {
+        alert("You do not have permission");
+        return;
+      }
+
+      const name = document.getElementById("name").value.trim();
+      const cls = document.getElementById("studentClass").value.trim();
+      const section = document.getElementById("section").value.trim();
+      const roll = document.getElementById("roll").value.trim();
+      const studentEmail = document.getElementById("studentEmail").value.trim();
+      const marks = document.getElementById("marks").value.trim();
+      const attendance = document.getElementById("attendance").value;
+      const attendancePercent = Number(document.getElementById("attendancePercent").value || 0);
+
+      if (!name || !cls || !section || !roll || !studentEmail) {
+        alert("Fill all required fields");
+        return;
+      }
+
+      const subjects = getSubjectsFromForm();
+
+      try {
+        await addDoc(collection(db, "students"), {
+          name,
+          className: cls,
+          section,
+          roll,
+          studentEmail,
+          marks,
+          attendance,
+          attendancePercent,
+          studentId: studentEmail,
+          subjects
+        });
+
+        clearStudentForm();
+      } catch (e) {
+        alert("Add failed: " + e.message);
+      }
+    };
+
+    function getSubjectsFromForm() {
+      return {
+        math: {
+          classMark: Number(document.getElementById("mathClassMark").value || 0),
+          quizMark: Number(document.getElementById("mathQuizMark").value || 0),
+          examMark: Number(document.getElementById("mathExamMark").value || 0)
+        },
+        english: {
+          classMark: Number(document.getElementById("englishClassMark").value || 0),
+          quizMark: Number(document.getElementById("englishQuizMark").value || 0),
+          examMark: Number(document.getElementById("englishExamMark").value || 0)
+        },
+        bangla: {
+          classMark: Number(document.getElementById("banglaClassMark").value || 0),
+          quizMark: Number(document.getElementById("banglaQuizMark").value || 0),
+          examMark: Number(document.getElementById("banglaExamMark").value || 0)
+        },
+        science: {
+          classMark: Number(document.getElementById("scienceClassMark").value || 0),
+          quizMark: Number(document.getElementById("scienceQuizMark").value || 0),
+          examMark: Number(document.getElementById("scienceExamMark").value || 0)
+        },
+        generalKnowledge: {
+          classMark: Number(document.getElementById("generalKnowledgeClassMark").value || 0),
+          quizMark: Number(document.getElementById("generalKnowledgeQuizMark").value || 0),
+          examMark: Number(document.getElementById("generalKnowledgeExamMark").value || 0)
+        },
+        islamicEducation: {
+          classMark: Number(document.getElementById("islamicEducationClassMark").value || 0),
+          quizMark: Number(document.getElementById("islamicEducationQuizMark").value || 0),
+          examMark: Number(document.getElementById("islamicEducationExamMark").value || 0)
+        }
+      };
+    }
+
+    function clearStudentForm() {
+      document.getElementById("name").value = "";
+      document.getElementById("studentClass").value = "";
+      document.getElementById("section").value = "";
+      document.getElementById("roll").value = "";
+      document.getElementById("studentEmail").value = "";
+      document.getElementById("marks").value = "";
+      document.getElementById("attendancePercent").value = "";
+      document.getElementById("attendance").value = "Present";
+
+      document.getElementById("mathClassMark").value = "";
+      document.getElementById("mathQuizMark").value = "";
+      document.getElementById("mathExamMark").value = "";
+
+      document.getElementById("englishClassMark").value = "";
+      document.getElementById("englishQuizMark").value = "";
+      document.getElementById("englishExamMark").value = "";
+
+      document.getElementById("banglaClassMark").value = "";
+      document.getElementById("banglaQuizMark").value = "";
+      document.getElementById("banglaExamMark").value = "";
+
+      document.getElementById("scienceClassMark").value = "";
+      document.getElementById("scienceQuizMark").value = "";
+      document.getElementById("scienceExamMark").value = "";
+
+      document.getElementById("generalKnowledgeClassMark").value = "";
+      document.getElementById("generalKnowledgeQuizMark").value = "";
+      document.getElementById("generalKnowledgeExamMark").value = "";
+
+      document.getElementById("islamicEducationClassMark").value = "";
+      document.getElementById("islamicEducationQuizMark").value = "";
+      document.getElementById("islamicEducationExamMark").value = "";
+    }
+
+    window.applyFilters = function () {
+      const s = document.getElementById("search").value.toLowerCase();
+      const c = document.getElementById("filterClass").value.toLowerCase();
+      const sec = document.getElementById("filterSection").value.toLowerCase();
+
+      const filtered = allData.filter(d =>
+        (d.name || "").toLowerCase().includes(s) &&
+        (c ? (d.className || "").toLowerCase().includes(c) : true) &&
+        (sec ? (d.section || "").toLowerCase().includes(sec) : true)
+      );
+
+      render(filtered);
+    };
+
+    function render(data) {
+      const table = document.getElementById("table");
+      table.innerHTML = "";
+
+      data.forEach(d => {
+        let actionButtons = "No Access";
+
+        if (currentRole === "admin") {
+          actionButtons = `
+            <button class="actionBtn deleteBtn" onclick="delStudent('${d.id}')">Delete</button>
+            <button class="actionBtn editBtn" onclick="editStudent('${d.id}')">Edit</button>
+          `;
+        } else if (currentRole === "teacher") {
+          actionButtons = `
+            <button class="actionBtn editBtn" onclick="editStudent('${d.id}')">Edit Marks</button>
+          `;
+        }
+
+        table.innerHTML += `
+          <tr>
+            <td>${escapeHtml(d.name || "")}</td>
+            <td>${escapeHtml(d.className || "")}</td>
+            <td>${escapeHtml(d.section || "")}</td>
+            <td>${escapeHtml(d.roll || "")}</td>
+            <td>${escapeHtml(d.studentEmail || "")}</td>
+            <td>${escapeHtml(d.marks || "")}</td>
+            <td>${escapeHtml(d.attendance || "")}</td>
+            <td>${escapeHtml(String(d.attendancePercent || 0))}%</td>
+            <td>${actionButtons}</td>
+          </tr>
+        `;
+      });
+    }
+
+    window.delStudent = async function (id) {
+      if (currentRole !== "admin") {
+        alert("Only admin can delete");
+        return;
+      }
+
+      const ok = confirm("Are you sure you want to delete this student?");
+      if (!ok) return;
+
+      try {
+        await deleteDoc(doc(db, "students", id));
+      } catch (e) {
+        alert("Delete failed: " + e.message);
+      }
+    };
+
+    window.editStudent = async function (id) {
+      const student = allData.find(item => item.id === id);
+      if (!student) {
+        alert("Student not found");
+        return;
+      }
+
+      if (currentRole !== "admin" && currentRole !== "teacher") {
+        alert("No permission");
+        return;
+      }
+
+      try {
+        if (currentRole === "admin") {
+          const newName = prompt("Name", student.name || "");
+          if (newName === null) return;
+
+          const newClass = prompt("Class", student.className || "");
+          if (newClass === null) return;
+
+          const newSection = prompt("Section", student.section || "");
+          if (newSection === null) return;
+
+          const newRoll = prompt("Roll", student.roll || "");
+          if (newRoll === null) return;
+
+          const newStudentEmail = prompt("Student Email", student.studentEmail || "");
+          if (newStudentEmail === null) return;
+
+          const newMarks = prompt("Overall Marks", student.marks || "");
+          if (newMarks === null) return;
+
+          const newAttendance = prompt("Attendance (Present / Absent / Late)", student.attendance || "");
+          if (newAttendance === null) return;
+
+          const newAttendancePercent = prompt("Attendance %", student.attendancePercent || 0);
+          if (newAttendancePercent === null) return;
+
+          const currentSubjects = student.subjects || {};
+
+          const updatedSubjects = {};
+          for (const subject of SUBJECT_KEYS) {
+            const subjectData = currentSubjects[subject] || {};
+
+            const classMark = prompt(`${formatSubjectName(subject)} - Class Mark`, subjectData.classMark || 0);
+            if (classMark === null) return;
+
+            const quizMark = prompt(`${formatSubjectName(subject)} - Quiz Mark`, subjectData.quizMark || 0);
+            if (quizMark === null) return;
+
+            const examMark = prompt(`${formatSubjectName(subject)} - Exam Mark`, subjectData.examMark || 0);
+            if (examMark === null) return;
+
+            updatedSubjects[subject] = {
+              classMark: Number(classMark || 0),
+              quizMark: Number(quizMark || 0),
+              examMark: Number(examMark || 0)
+            };
+          }
+
+          await updateDoc(doc(db, "students", id), {
+            name: newName.trim(),
+            className: newClass.trim(),
+            section: newSection.trim(),
+            roll: newRoll.trim(),
+            studentEmail: newStudentEmail.trim(),
+            marks: newMarks.trim(),
+            attendance: newAttendance.trim(),
+            attendancePercent: Number(newAttendancePercent || 0),
+            studentId: newStudentEmail.trim(),
+            subjects: updatedSubjects
+          });
+        }
+
+        else if (currentRole === "teacher") {
+          const currentSubjects = student.subjects || {};
+          const updatedSubjects = { ...currentSubjects };
+
+          for (const subject of SUBJECT_KEYS) {
+            const subjectData = currentSubjects[subject] || {};
+
+            const classMark = prompt(`${formatSubjectName(subject)} - Class Mark`, subjectData.classMark || 0);
+            if (classMark === null) return;
+
+            const quizMark = prompt(`${formatSubjectName(subject)} - Quiz Mark`, subjectData.quizMark || 0);
+            if (quizMark === null) return;
+
+            const examMark = prompt(`${formatSubjectName(subject)} - Exam Mark`, subjectData.examMark || 0);
+            if (examMark === null) return;
+
+            updatedSubjects[subject] = {
+              classMark: Number(classMark || 0),
+              quizMark: Number(quizMark || 0),
+              examMark: Number(examMark || 0)
+            };
+          }
+
+          const newAttendance = prompt("Attendance (Present / Absent / Late)", student.attendance || "");
+          if (newAttendance === null) return;
+
+          const newAttendancePercent = prompt("Attendance %", student.attendancePercent || 0);
+          if (newAttendancePercent === null) return;
+
+          await updateDoc(doc(db, "students", id), {
+            attendance: newAttendance.trim(),
+            attendancePercent: Number(newAttendancePercent || 0),
+            subjects: updatedSubjects
+          });
+        }
+      } catch (e) {
+        alert("Update failed: " + e.message);
+      }
+    };
+
+    window.downloadCSV = function () {
+      if (currentRole !== "admin" && currentRole !== "teacher") {
+        alert("No permission to download");
+        return;
+      }
+
+      const s = document.getElementById("search").value.toLowerCase();
+      const c = document.getElementById("filterClass").value.toLowerCase();
+      const sec = document.getElementById("filterSection").value.toLowerCase();
+
+      const filtered = allData.filter(d =>
+        (d.name || "").toLowerCase().includes(s) &&
+        (c ? (d.className || "").toLowerCase().includes(c) : true) &&
+        (sec ? (d.section || "").toLowerCase().includes(sec) : true)
+      );
+
+      if (!filtered.length) {
+        alert("No filtered data found");
+        return;
+      }
+
+      let csv = "Name,Class,Section,Roll,Student Email,Marks,Attendance,Attendance Percent,Math Total,English Total,Bangla Total,Science Total,General Knowledge Total,Islamic Education Total\n";
+
+      filtered.forEach(student => {
+        const subjects = student.subjects || {};
+
+        const row = [
+          `"${csvSafe(student.name || "")}"`,
+          `"${csvSafe(student.className || "")}"`,
+          `"${csvSafe(student.section || "")}"`,
+          `"${csvSafe(student.roll || "")}"`,
+          `"${csvSafe(student.studentEmail || "")}"`,
+          `"${csvSafe(student.marks || "")}"`,
+          `"${csvSafe(student.attendance || "")}"`,
+          `"${csvSafe(student.attendancePercent || 0)}"`,
+          `"${csvSafe(getSubjectTotal(subjects.math))}"`,
+          `"${csvSafe(getSubjectTotal(subjects.english))}"`,
+          `"${csvSafe(getSubjectTotal(subjects.bangla))}"`,
+          `"${csvSafe(getSubjectTotal(subjects.science))}"`,
+          `"${csvSafe(getSubjectTotal(subjects.generalKnowledge))}"`,
+          `"${csvSafe(getSubjectTotal(subjects.islamicEducation))}"`
+        ];
+
+        csv += row.join(",") + "\n";
+      });
+
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "filtered_students.csv";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+
+      URL.revokeObjectURL(url);
+    };
+
+    function getSubjectTotal(subject) {
+      if (!subject) return 0;
+      return Number(subject.classMark || 0) + Number(subject.quizMark || 0) + Number(subject.examMark || 0);
+    }
+
+    function csvSafe(value) {
+      return String(value).replace(/"/g, '""');
+    }
+
+    function escapeHtml(value) {
+      return String(value)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#39;");
+    }
+  </script>
+
+</body>
+</html>
