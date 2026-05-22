@@ -162,6 +162,23 @@
       font-size: 28px;
     }
 
+    .topHeader{
+  text-align:center;
+  margin-bottom:25px;
+}
+
+#schoolTitle{
+  margin:0;
+  font-size:34px;
+  color:#1e293b;
+}
+
+#welcomeText{
+  margin-top:8px;
+  font-size:20px;
+  color:#475569;
+}
+
     .statsRow {
       display: flex;
       gap: 20px;
@@ -285,7 +302,7 @@
   <!-- LOGIN -->
   <div id="loginBox">
     <div class="loginCard">
-      <h2>🔐 Login</h2>
+      <h2>🔐 FH School Management System Login</h2>
       <input id="email" placeholder="Email">
       <input id="password" type="password" placeholder="Password">
       <button onclick="login()">Login</button>
@@ -308,51 +325,55 @@
 
       <!-- MAIN -->
       <div class="main">
+        <div class="topHeader">
+        <h1 id="schoolTitle">FH School Management System</h1>
         <h2 id="welcomeText">Welcome</h2>
+      </div>
 
         <!-- DASHBOARD -->
-        <div id="dashboardPage">
-          <div class="statsRow">
-            <div class="card">
-              <h3>Student Info</h3>
-              <p><b>Name:</b> <span id="dashName">-</span></p>
-              <p><b>Class:</b> <span id="dashClass">-</span></p>
-              <p><b>Section:</b> <span id="dashSection">-</span></p>
-              <p><b>Roll:</b> <span id="dashRoll">-</span></p>
-            </div>
+<div id="dashboardPage">
 
-            <div class="card">
-              <h3>Attendance</h3>
-              <p style="font-size:28px; font-weight:bold;" id="dashAttendance">0%</p>
-              <p class="subjectHelp">Student attendance percentage</p>
-            </div>
-          </div>
+  <div class="statsRow">
 
-          <div class="card" style="margin-top:20px;">
-            <h3>Subject Performance</h3>
-            <div class="tableWrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Subject</th>
-                    <th>Class Mark</th>
-                    <th>Quiz Mark</th>
-                    <th>Exam Mark</th>
-                    <th>Total %</th>
-                    <th>Recommendation</th>
-                  </tr>
-                </thead>
-                <tbody id="subjectTable"></tbody>
-              </table>
-            </div>
-          </div>
-        </div>
+    <div class="card">
+      <h3>Total Students</h3>
+      <p style="font-size:32px; font-weight:bold;" id="totalStudents">0</p>
+    </div>
+
+    <div class="card">
+      <h3>Present Students</h3>
+      <p style="font-size:32px; font-weight:bold; color:green;" id="presentStudents">0</p>
+    </div>
+
+    <div class="card">
+      <h3>Absent Students</h3>
+      <p style="font-size:32px; font-weight:bold; color:red;" id="absentStudents">0</p>
+    </div>
+
+    <div class="card">
+       <h3>Late Students</h3>
+       <p style="font-size:32px; font-weight:bold; color:orange;" id="lateStudents">0</p>
+    </div>
+
+    <div class="card">
+      <h3>Attendance Percentage</h3>
+      <p style="font-size:32px; font-weight:bold; color:#3498db;" id="attendanceRate">0%</p>
+    </div>
+
+  </div>
+
+</div>
 
         <!-- STUDENTS -->
         <div id="studentsPage" style="display:none;">
 
           <div id="studentFormArea" class="formRow">
-            <input id="name" placeholder="Name">
+            <button onclick="toggleStudentForm()">➕ Add New Student</button>
+            <button onclick="toggleStudentList()">📋 All Students</button>
+            
+            <div id="studentForm" style="display:none; margin-top:15px;">
+            
+              <input id="name" placeholder="Name">
             <input id="studentClass" placeholder="Class">
             <input id="section" placeholder="Section">
             <input id="roll" placeholder="Roll">
@@ -367,10 +388,12 @@
             </select>
 
             <button onclick="addStudents()">Add</button>
+            
           </div>
 
           <div id="subjectFormArea" class="card" style="margin-bottom:16px;">
             <h3>Subject Marks Setup</h3>
+            <div id="studentListArea" style="display:none;">
             <div class="tableWrap">
               <table>
                 <thead>
@@ -421,6 +444,8 @@
                 </tbody>
               </table>
             </div>
+          </div>
+          </div>
           </div>
 
           <div class="filterRow">
@@ -512,7 +537,18 @@
       "generalKnowledge",
       "islamicEducation"
     ];
+window.toggleStudentForm = function() {
+  const form = document.getElementById("studentForm");
+  const subjectForm = document.getElementById("subjectFormArea");
 
+  if (form.style.display === "none") {
+    form.style.display = "block";
+    subjectForm.style.display = "block";
+  } else {
+    form.style.display = "none";
+    subjectForm.style.display = "none";
+  }
+};
     window.login = async function () {
       const userEmail = document.getElementById("email").value.trim();
       const userPassword = document.getElementById("password").value.trim();
@@ -528,6 +564,21 @@
         alert("Login failed: " + e.message);
       }
     };
+
+    window.showAllStudents = function () {
+
+  const area = document.getElementById("allStudentsArea");
+
+  if (area.style.display === "none") {
+
+    area.style.display = "block";
+    applyFilters();
+
+  } else {
+
+    area.style.display = "none";
+  }
+};
 
     window.logout = async function () {
       try {
@@ -679,111 +730,45 @@
         snap.forEach(d => allData.push({ id: d.id, ...d.data() }));
         applyFilters();
 
-        if (currentRole === "student" && allData.length > 0) {
-          renderStudentDashboard(allData[0]);
-        }
-
-        if ((currentRole === "admin" || currentRole === "teacher") && allData.length > 0) {
-          renderAdminTeacherDashboard(allData);
-        }
+        updateDashboardStats(allData);
       }, (error) => {
         alert("Student data load failed: " + error.message);
       });
     }
 
-    function renderAdminTeacherDashboard(data) {
-      document.getElementById("dashName").innerText = "All Students";
-      document.getElementById("dashClass").innerText = "-";
-      document.getElementById("dashSection").innerText = "-";
-      document.getElementById("dashRoll").innerText = data.length;
+    
+function updateDashboardStats(data) {
 
-      const totalAttendance = data.reduce((sum, item) => sum + Number(item.attendancePercent || 0), 0);
-      const avgAttendance = data.length ? (totalAttendance / data.length).toFixed(2) : 0;
-      document.getElementById("dashAttendance").innerText = avgAttendance + "%";
+  const total = data.length;
 
-      const subjectTable = document.getElementById("subjectTable");
-      subjectTable.innerHTML = "";
+  const present = data.filter(
+    student => student.attendance === "Present"
+  ).length;
 
-      const subjectTotals = {};
+  const absent = data.filter(
+    student => student.attendance === "Absent"
+  ).length;
 
-      SUBJECT_KEYS.forEach(subject => {
-        subjectTotals[subject] = {
-          classMark: 0,
-          quizMark: 0,
-          examMark: 0,
-          count: 0
-        };
-      });
+  const late = data.filter(
+    student => student.attendance === "Late"
+  ).length;
 
-      data.forEach(student => {
-        const subjects = student.subjects || {};
-        SUBJECT_KEYS.forEach(subject => {
-          const item = subjects[subject] || {};
-          subjectTotals[subject].classMark += Number(item.classMark || 0);
-          subjectTotals[subject].quizMark += Number(item.quizMark || 0);
-          subjectTotals[subject].examMark += Number(item.examMark || 0);
-          subjectTotals[subject].count += 1;
-        });
-      });
+  const attendanceRate = total
+    ? ((present / total) * 100).toFixed(2)
+    : 0;
 
-      SUBJECT_KEYS.forEach(subject => {
-        const item = subjectTotals[subject];
-        const count = item.count || 1;
-        const classMark = (item.classMark / count).toFixed(2);
-        const quizMark = (item.quizMark / count).toFixed(2);
-        const examMark = (item.examMark / count).toFixed(2);
-        const total = (Number(classMark) + Number(quizMark) + Number(examMark)).toFixed(2);
-        const recommendation = getRecommendation(Number(total));
+  document.getElementById("totalStudents").innerText = total;
 
-        subjectTable.innerHTML += `
-          <tr>
-            <td>${formatSubjectName(subject)}</td>
-            <td>${classMark}</td>
-            <td>${quizMark}</td>
-            <td>${examMark}</td>
-            <td>${total}%</td>
-            <td class="${recommendation.className}">${recommendation.text}</td>
-          </tr>
-        `;
-      });
-    }
+  document.getElementById("presentStudents").innerText = present;
 
-    function renderStudentDashboard(student) {
-      if (!student) return;
+  document.getElementById("absentStudents").innerText = absent;
 
-      document.getElementById("dashName").innerText = student.name || "-";
-      document.getElementById("dashClass").innerText = student.className || "-";
-      document.getElementById("dashSection").innerText = student.section || "-";
-      document.getElementById("dashRoll").innerText = student.roll || "-";
-      document.getElementById("dashAttendance").innerText = (student.attendancePercent || 0) + "%";
+  document.getElementById("lateStudents").innerText = late;
 
-      const subjectTable = document.getElementById("subjectTable");
-      subjectTable.innerHTML = "";
+  document.getElementById("attendanceRate").innerText =
+    attendanceRate + "%";
+}
 
-      const subjects = student.subjects || {};
-
-      SUBJECT_KEYS.forEach(subjectName => {
-        const sub = subjects[subjectName] || {};
-
-        const classMark = Number(sub.classMark || 0);
-        const quizMark = Number(sub.quizMark || 0);
-        const examMark = Number(sub.examMark || 0);
-
-        const total = classMark + quizMark + examMark;
-        const recommendation = getRecommendation(total);
-
-        subjectTable.innerHTML += `
-          <tr>
-            <td>${formatSubjectName(subjectName)}</td>
-            <td>${classMark}</td>
-            <td>${quizMark}</td>
-            <td>${examMark}</td>
-            <td>${total}%</td>
-            <td class="${recommendation.className}">${recommendation.text}</td>
-          </tr>
-        `;
-      });
-    }
 
     function getRecommendation(total) {
       if (total < 40) {
@@ -849,11 +834,13 @@
         });
 
         clearStudentForm();
+        document.getElementById("studentForm").style.display = "none";
+        document.getElementById("subjectFormArea").style.display = "none";
       } catch (e) {
         alert("Add failed: " + e.message);
       }
     };
-
+document.getElementById("studentForm").style.display = "none";
     function getSubjectsFromForm() {
       return {
         math: {
