@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FH Secure School Panel</title>
+
+  <link rel="stylesheet" href="css/style.css">
+  
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
+
+</head>
+
+<body>
+  <div id="loginBox">
+    <div class="loginCard">
+      <h2>FH School Management Login</h2>
+      <input id="email" type="email" placeholder="Email" />
+      <input id="password" type="password" placeholder="Password" />
+      <button onclick="login()">Login</button>
+    </div>
+  </div>
+
+  <div id="app" style="display:none;">
+    <div class="layout">
+      <div class="sidebar" id="sidebarMenu"></div>
+
+      <div class="main">
+        <div class="topHeader">
+          <h1 id="schoolTitle">FH School Management System</h1>
+          <h2 id="welcomeText">Welcome</h2>
+        </div>
+
+        <div id="dashboardPage">
+          <div class="statsRow" id="statsRow">
+            <div class="card">
+              <h3>Total Students</h3>
+              <p id="totalStudents" class="statNumber">0</p>
+            </div>
+            <div class="card">
+              <h3>Present Students</h3>
+              <p id="presentStudents" class="statNumber" style="color:green;">0</p>
+            </div>
+            <div class="card">
+              <h3>Absent Students</h3>
+              <p id="absentStudents" class="statNumber" style="color:red;">0</p>
+            </div>
+            <div class="card">
+              <h3>Late Students</h3>
+              <p id="lateStudents" class="statNumber" style="color:orange;">0</p>
+            </div>
+            <div class="card">
+              <h3>Attendance %</h3>
+              <p id="attendanceRate" class="statNumber" style="color:#3498db;">0%</p>
+            </div>
+          </div>
+          <div class="card" id="classWiseDashboard">
+  <h3>Class-wise Attendance Dashboard</h3>
+
+  <div class="tableWrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Class</th>
+          <th>Total Student</th>
+          <th>Present</th>
+          <th>Absent</th>
+          <th>Late</th>
+          <th>Attendance %</th>
+        </tr>
+      </thead>
+      <tbody id="classWiseTable"></tbody>
+    </table>
+  </div>
+</div>
+          <div id="studentProfileArea" style="display:none;">
+  <div class="card">
+    <h3>Student Profile</h3>
+
+    <div class="profileBox">
+      <p><b>Name:</b> <span id="studentProfileName">-</span></p>
+      <p>
+        <b>Class:</b> <span id="studentProfileClass">-</span> |
+        <b>Section:</b> <span id="studentProfileSection">-</span> |
+        <b>Roll:</b> <span id="studentProfileRoll">-</span>
+      </p>
+      <p><b>Email:</b> <span id="studentProfileEmail">-</span></p>
+      <p>
+        <b>Attendance:</b> <span id="studentProfileAttendance">-</span> |
+        <b>Attendance %:</b> <span id="studentProfileAttendancePercent">0%</span>
+      </p>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Result Card</h3>
+
+    <div class="tableWrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Subject</th>
+            <th>Class Mark</th>
+            <th>Quiz Mark</th>
+            <th>Exam Mark</th>
+            <th>Total</th>
+          </tr>
+        </thead>
+        <tbody id="studentResultTable"></tbody>
+      </table>
+    </div>
+
+    <div class="resultSummary">
+      <div>
+        <b>Total Marks</b>
+        <p id="resultTotalMarks">0</p>
+      </div>
+      <div>
+        <b>Percentage</b>
+        <p id="resultPercentage">0%</p>
+      </div>
+      <div>
+        <b>Grade</b>
+        <p id="resultGrade">-</p>
+      </div>
+      <div>
+        <b>Status</b>
+        <p id="resultStatus">-</p>
+      </div>
+    </div>
+  </div>
+</div>
+        </div>
+
+        <div id="studentsPage" style="display:none;">
+          <div class="card buttonPanel" id="studentButtons">
+            <button id="addStudentBtn" onclick="showAddStudent()">Add New Student</button>
+            <button onclick="showAllStudents()">All Students</button>
+          </div>
+
+          <div id="addStudentArea" style="display:none;">
+            <div class="card">
+              <h3>Add New Student</h3>
+
+              <div class="formRow">
+                <input id="name" placeholder="Name" />
+                <input id="studentClass" placeholder="Class" />
+                <input id="section" placeholder="Section" />
+                <input id="roll" placeholder="Roll" />
+                <input id="studentEmail" type="email" placeholder="Student Email" />
+                <input id="attendancePercent" type="number" min="0" max="100" placeholder="Attendance %" />
+                <input id="marks" type="number" min="0" placeholder="Overall Marks" />
+
+                <select id="attendance">
+                  <option>Present</option>
+                  <option>Absent</option>
+                  <option>Late</option>
+                </select>
+
+                <button onclick="addStudent()">Add Student</button>
+              </div>
+            </div>
+          </div>
+
+          <div id="allStudentsArea" style="display:none;">
+            <div class="card buttonPanel" id="studentFilterPanel">
+              <div class="filterRow" style="margin:0;">
+                <input id="search" placeholder="Search name..." onkeyup="applyFilters()" />
+                <input id="filterClass" placeholder="Class filter" onkeyup="applyFilters()" />
+                <input id="filterSection" placeholder="Section filter" onkeyup="applyFilters()" />
+              </div>
+              <button id="csvBtn" onclick="downloadCSV()">Download CSV</button>
+            </div>
+
+            <div class="tableWrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Class</th>
+                    <th>Section</th>
+                    <th>Roll</th>
+                    <th>Student Email</th>
+                    <th>Marks</th>
+                    <th>Attendance</th>
+                    <th>Attendance %</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody id="table"></tbody>
+              </table>
+              <div id="emptyStudents" class="emptyState" style="display:none;">No students found</div>
+            </div>
+
+            <div id="marksPanel" class="card" style="display:none; margin-top:18px;">
+              <h3>Student-wise Subject Marks Update</h3>
+
+              <div class="profileBox">
+                <p><b>Name:</b> <span id="profileName">-</span></p>
+                <p>
+                  <b>Class:</b> <span id="profileClass">-</span> |
+                  <b>Section:</b> <span id="profileSection">-</span> |
+                  <b>Roll:</b> <span id="profileRoll">-</span>
+                </p>
+                <p><b>Email:</b> <span id="profileEmail">-</span></p>
+              </div>
+
+              <div class="tableWrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Subject</th>
+                      <th>Class Mark</th>
+                      <th>Quiz Mark</th>
+                      <th>Exam Mark</th>
+                      <th>Total</th>
+                    </tr>
+                  </thead>
+                  <tbody id="marksTable"></tbody>
+                </table>
+              </div>
+
+              <br />
+
+              <button onclick="updateStudentMarks()">Update Marks</button>
+              <button onclick="closeMarksPanel()" class="secondaryBtn">Cancel</button>
+            </div>
+          </div>
+        </div>
+        <div id="attendancePage" style="display:none;">
+  <div class="card">
+    <h3>Daily Attendance</h3>
+
+    <div class="formRow">
+      <input id="attendanceClass" placeholder="Class">
+      <input id="attendanceSection" placeholder="Section">
+      <button onclick="loadAttendanceSheet()">Load Students</button>
+    </div>
+  </div>
+
+  <div id="attendanceSheetArea" style="display:none;">
+    <div class="card buttonPanel">
+      <div>
+        <b id="attendanceSheetTitle">Attendance Sheet</b>
+        <p style="margin:6px 0 0;color:#64748b;">
+          Default status is Present. Change only Absent or Late students.
+        </p>
+      </div>
+
+      <button onclick="saveAttendance()">Save Attendance</button>
+    </div>
+
+    <div class="tableWrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Roll</th>
+            <th>Name</th>
+            <th>Class</th>
+            <th>Section</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="attendanceTable"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="studentModal" class="modalOverlay">
+  <div class="modalBox">
+    <div class="modalHeader">
+      <h3 id="studentModalTitle">Student Profile</h3>
+      <button class="secondaryBtn" onclick="closeStudentModal()">Close</button>
+    </div>
+
+    <div class="profileBox">
+      <p><b>Name:</b> <span id="modalProfileName">-</span></p>
+      <p>
+        <b>Class:</b> <span id="modalProfileClass">-</span> |
+        <b>Section:</b> <span id="modalProfileSection">-</span> |
+        <b>Roll:</b> <span id="modalProfileRoll">-</span>
+      </p>
+      <p><b>Email:</b> <span id="modalProfileEmail">-</span></p>
+      <p>
+        <b>Attendance:</b> <span id="modalProfileAttendance">-</span> |
+        <b>Attendance %:</b> <span id="modalProfileAttendancePercent">0%</span>
+      </p>
+    </div>
+
+    <div class="tableWrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Subject</th>
+            <th>Class Mark</th>
+            <th>Quiz Mark</th>
+            <th>Exam Mark</th>
+            <th>Total</th>
+          </tr>
+        </thead>
+        <tbody id="modalMarksTable"></tbody>
+      </table>
+    </div>
+
+    <div class="resultSummary">
+      <div><b>Total Marks</b><p id="modalTotalMarks">0</p></div>
+      <div><b>Percentage</b><p id="modalPercentage">0%</p></div>
+      <div><b>Grade</b><p id="modalGrade">-</p></div>
+      <div><b>Status</b><p id="modalStatus">-</p></div>
+    </div>
+
+    <div class="recommendationBox">
+      <b>Recommendation</b>
+      <p id="modalRecommendation">-</p>
+    </div>
+
+    <div class="modalActions">
+      <button id="saveMarksBtn" onclick="updateStudentMarks()">Update Marks</button>
+      <button onclick="downloadResultPDF()">Download PDF Result Card</button>
+      <button class="secondaryBtn" onclick="closeStudentModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<script type="module" src="js/app.js"></script>
+
+</body>
+</html>
