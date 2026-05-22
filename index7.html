@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>FH Secure School Panel</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin:0; font-family:Arial,sans-serif; background:#f4f6f9; color:#2c3e50; }
+    input, select, button { padding:10px 12px; border-radius:8px; border:1px solid #dcdfe6; font-size:14px; outline:none; }
+    button { background:#3498db; color:white; border:none; cursor:pointer; font-weight:600; }
+    button:hover { background:#2980b9; }
+    table { width:100%; border-collapse:collapse; background:white; }
+    th,td { border:1px solid #eef1f4; padding:12px; text-align:center; }
+    th { background:#f8fafc; }
+    .card { background:white; padding:22px; border-radius:14px; box-shadow:0 4px 18px rgba(0,0,0,.06); margin-bottom:16px; }
+    #loginBox { position:fixed; inset:0; display:flex; justify-content:center; align-items:center; background:#f4f6f9; z-index:999; }
+    .loginCard { width:360px; background:white; padding:30px; border-radius:18px; box-shadow:0 10px 35px rgba(0,0,0,.1); text-align:center; }
+    .loginCard input, .loginCard button { width:100%; margin:8px 0; }
+    .layout { display:flex; min-height:100vh; }
+    .sidebar { width:240px; background:#1f2d3d; color:white; padding:22px 16px; }
+    .sidebar p { padding:12px 14px; border-radius:10px; cursor:pointer; }
+    .sidebar p:hover { background:rgba(255,255,255,.1); }
+    .main { flex:1; padding:24px; overflow:auto; }
+    .topHeader { text-align:center; margin-bottom:25px; }
+    #schoolTitle { margin:0; font-size:34px; color:#1e293b; }
+    #welcomeText { margin-top:8px; font-size:20px; color:#475569; }
+    .statsRow { display:flex; gap:20px; flex-wrap:wrap; }
+    .statsRow .card { flex:1; min-width:200px; }
+    .formRow, .filterRow { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:14px; }
+    .tableWrap { overflow-x:auto; background:white; border-radius:14px; box-shadow:0 4px 18px rgba(0,0,0,.05); }
+    .actionBtn { padding:8px 14px; border-radius:8px; margin:2px; }
+    .deleteBtn { background:#e74c3c; }
+    .editBtn { background:#27ae60; }
+    .buttonPanel { display:flex; justify-content:space-between; gap:12px; align-items:center; }
+    @media(max-width:768px){ .layout{flex-direction:column;} .sidebar{width:100%;} .formRow input,.filterRow input{width:100%;} }
+  </style>
+</head>
+
+<body>
+
+<div id="loginBox">
+  <div class="loginCard">
+    <h2>🔐 FH School Management System Login</h2>
+    <input id="email" placeholder="Email">
+    <input id="password" type="password" placeholder="Password">
+    <button onclick="login()">Login</button>
+  </div>
+</div>
+
+<div id="app" style="display:none;">
+  <div class="layout">
+
+    <div class="sidebar" id="sidebarMenu">
+      <h2>🎓 School Panel</h2>
+      <hr>
+      <p onclick="showPage('dashboard')">📊 Dashboard</p>
+      <p onclick="showPage('students')">👨‍🎓 Students</p>
+      <p onclick="logout()">🚪 Logout</p>
+    </div>
+
+    <div class="main">
+      <div class="topHeader">
+        <h1 id="schoolTitle">FH School Management System</h1>
+        <h2 id="welcomeText">Welcome</h2>
+      </div>
+
+      <div id="dashboardPage">
+        <div class="statsRow">
+          <div class="card"><h3>Total Students</h3><p id="totalStudents" style="font-size:32px;font-weight:bold;">0</p></div>
+          <div class="card"><h3>Present Students</h3><p id="presentStudents" style="font-size:32px;font-weight:bold;color:green;">0</p></div>
+          <div class="card"><h3>Absent Students</h3><p id="absentStudents" style="font-size:32px;font-weight:bold;color:red;">0</p></div>
+          <div class="card"><h3>Late Students</h3><p id="lateStudents" style="font-size:32px;font-weight:bold;color:orange;">0</p></div>
+          <div class="card"><h3>Attendance %</h3><p id="attendanceRate" style="font-size:32px;font-weight:bold;color:#3498db;">0%</p></div>
+        </div>
+      </div>
+
+      <div id="studentsPage" style="display:none;">
+
+        <div class="card buttonPanel">
+          <button onclick="showAddStudent()">➕ Add New Student</button>
+          <button onclick="showAllStudents()">📋 All Students</button>
+        </div>
+
+        <div id="addStudentArea" style="display:none;">
+          <div class="card">
+            <h3>Add New Student</h3>
+            <div class="formRow">
+              <input id="name" placeholder="Name">
+              <input id="studentClass" placeholder="Class">
+              <input id="section" placeholder="Section">
+              <input id="roll" placeholder="Roll">
+              <input id="studentEmail" placeholder="Student Email">
+              <input id="attendancePercent" type="number" placeholder="Attendance %">
+              <input id="marks" type="number" placeholder="Overall Marks">
+              <select id="attendance">
+                <option>Present</option>
+                <option>Absent</option>
+                <option>Late</option>
+              </select>
+              <button onclick="addStudents()">Add Student</button>
+            </div>
+          </div>
+
+         </div>
+
+        <div id="allStudentsArea" style="display:none;">
+          <div class="card buttonPanel">
+            <div class="filterRow" style="margin:0;">
+              <input id="search" placeholder="Search..." onkeyup="applyFilters()">
+              <input id="filterClass" placeholder="Class filter" onkeyup="applyFilters()">
+              <input id="filterSection" placeholder="Section filter" onkeyup="applyFilters()">
+            </div>
+            <button onclick="downloadCSV()">⬇ Download CSV</button>
+          </div>
+
+          <div class="tableWrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Name</th><th>Class</th><th>Section</th><th>Roll</th>
+                  <th>Student Email</th><th>Marks</th><th>Attendance</th>
+                  <th>Attendance %</th><th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="table"></tbody>
+            </table>
+
+       <div id="marksPanel" class="card" style="display:none; margin-top:18px;">
+
+          <h3>Student-wise Subject Marks Update</h3>
+
+        <div class="profileBox">
+          <p><b>Name:</b> <span id="profileName">-</span></p>
+
+          <p>
+          <b>Class:</b> <span id="profileClass">-</span> |
+          <b>Section:</b> <span id="profileSection">-</span> |
+          <b>Roll:</b> <span id="profileRoll">-</span>
+        </p>
+
+        <p><b>Email:</b> <span id="profileEmail">-</span></p>
+      </div>
+
+      <div class="tableWrap">
+
+      <table>
+
+        <thead>
+         <tr>
+            <th>Subject</th>
+           <th>Class Mark</th>
+           <th>Quiz Mark</th>
+           <th>Exam Mark</th>
+          </tr>
+       </thead>
+
+      <tbody>
+
+        <tr>
+          <td>Math</td>
+
+          <td><input id="mathClassMark" type="number"></td>
+
+          <td><input id="mathQuizMark" type="number"></td>
+
+          <td><input id="mathExamMark" type="number"></td>
+        </tr>
+
+        <tr>
+          <td>English</td>
+
+          <td><input id="englishClassMark" type="number"></td>
+
+          <td><input id="englishQuizMark" type="number"></td>
+
+          <td><input id="englishExamMark" type="number"></td>
+        </tr>
+
+      </tbody>
+
+    </table>
+
+  </div>
+
+  <br>
+
+  <button onclick="updateStudentMarks()">
+    ✅ Update Marks
+  </button>
+
+  <button onclick="closeMarksPanel()" style="background:#6b7280;">
+    Cancel
+  </button>
+
+</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import { getFirestore, collection, addDoc, onSnapshot, deleteDoc, doc, updateDoc, getDoc, query, where } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyCOL08Us-2m5w7rznnwUGudTz-QOxyi1l4",
+  authDomain: "school-management-system-93aba.firebaseapp.com",
+  projectId: "school-management-system-93aba"
+};
+
+const appFirebase = initializeApp(firebaseConfig);
+const db = getFirestore(appFirebase);
+const auth = getAuth(appFirebase);
+
+let allData = [];
+let currentRole = "";
+let currentStudentId = "";
+let selectedStudentForMarks = null;
+let unsubscribeStudents = null;
+
+const loginBox = document.getElementById("loginBox");
+const app = document.getElementById("app");
+const welcomeText = document.getElementById("welcomeText");
+const sidebarMenu = document.getElementById("sidebarMenu");
+
+const SUBJECT_KEYS = ["math","english","bangla","science","generalKnowledge","islamicEducation"];
+
+window.openMarksPanel = function(id){
+
+  const student = allData.find(s => s.id === id);
+
+  if(!student){
+    alert("Student not found");
+    return;
+  }
+
+  selectedStudentForMarks = student;
+
+  profileName.innerText = student.name || "-";
+  profileClass.innerText = student.className || "-";
+  profileSection.innerText = student.section || "-";
+  profileRoll.innerText = student.roll || "-";
+  profileEmail.innerText = student.studentEmail || "-";
+
+  const subjects = student.subjects || {};
+
+  mathClassMark.value = subjects.math?.classMark || 0;
+  mathQuizMark.value = subjects.math?.quizMark || 0;
+  mathExamMark.value = subjects.math?.examMark || 0;
+
+  englishClassMark.value = subjects.english?.classMark || 0;
+  englishQuizMark.value = subjects.english?.quizMark || 0;
+  englishExamMark.value = subjects.english?.examMark || 0;
+
+  document.getElementById("marksPanel").style.display = "block";
+};
+
+window.updateStudentMarks = async function(){
+
+  if(!selectedStudentForMarks){
+    alert("No student selected");
+    return;
+  }
+
+  const subjects = {
+
+    math:{
+      classMark:Number(mathClassMark.value || 0),
+      quizMark:Number(mathQuizMark.value || 0),
+      examMark:Number(mathExamMark.value || 0)
+    },
+
+    english:{
+      classMark:Number(englishClassMark.value || 0),
+      quizMark:Number(englishQuizMark.value || 0),
+      examMark:Number(englishExamMark.value || 0)
+    }
+
+  };
+
+  try {
+
+    await updateDoc(
+      doc(db,"students",selectedStudentForMarks.id),
+      { subjects }
+    );
+
+    alert("Marks updated successfully");
+
+    closeMarksPanel();
+
+  } catch(e){
+
+    alert("Update failed: " + e.message);
+
+  }
+};
+
+window.login = async function(){
+  const email = document.getElementById("email").value.trim();
+  const password = document.getElementById("password").value.trim();
+  if(!email || !password){ alert("Enter email and password"); return; }
+  try { await signInWithEmailAndPassword(auth,email,password); }
+  catch(e){ alert("Login failed: " + e.message); }
+};
+
+window.logout = async function(){
+  if(unsubscribeStudents){ unsubscribeStudents(); unsubscribeStudents = null; }
+  await signOut(auth);
+};
+
+window.showPage = function(page){
+  document.getElementById("dashboardPage").style.display = "none";
+  document.getElementById("studentsPage").style.display = "none";
+
+  if(page === "dashboard") document.getElementById("dashboardPage").style.display = "block";
+  if(page === "students") {
+    document.getElementById("studentsPage").style.display = "block";
+    document.getElementById("addStudentArea").style.display = "none";
+    document.getElementById("allStudentsArea").style.display = "none";
+  }
+};
+
+window.showAddStudent = function(){
+  document.getElementById("addStudentArea").style.display = "block";
+  document.getElementById("allStudentsArea").style.display = "none";
+};
+
+window.showAllStudents = function(){
+
+  document.getElementById("allStudentsArea").style.display = "block";
+  document.getElementById("addStudentArea").style.display = "none";
+  document.getElementById("marksPanel").style.display = "none";
+  render(allData);
+  applyFilters();
+};
+
+
+onAuthStateChanged(auth, async (user) => {
+  if(!user){
+    loginBox.style.display = "flex";
+    app.style.display = "none";
+    currentRole = "";
+    allData = [];
+    if(unsubscribeStudents){ unsubscribeStudents(); unsubscribeStudents = null; }
+    return;
+  }
+
+  try {
+    const userSnap = await getDoc(doc(db, "users", user.uid));
+    if(!userSnap.exists()){
+      alert("No role assigned for this user");
+      await signOut(auth);
+      return;
+    }
+
+    const userData = userSnap.data();
+    currentRole = userData.role || "";
+    const displayName = userData.name || user.email;
+    currentStudentId = userData.studentId || user.email;
+
+    loginBox.style.display = "none";
+    app.style.display = "block";
+
+    setupRoleUI(displayName);
+    loadStudents();
+  } catch(error){
+    alert("Role check failed: " + error.message);
+  }
+});
+
+function setupRoleUI(displayName){
+  if(currentRole === "admin"){
+    welcomeText.innerText = "Welcome Admin 👑";
+    sidebarMenu.innerHTML = `
+      <h2>👑 Admin Panel</h2><hr>
+      <p onclick="showPage('dashboard')">📊 Dashboard</p>
+      <p onclick="showPage('students')">👨‍🎓 Students</p>
+      <p onclick="logout()">🚪 Logout</p>`;
+    showPage("dashboard");
+  }
+  else if(currentRole === "teacher"){
+    welcomeText.innerText = "Welcome " + displayName + " 👨‍🏫";
+    sidebarMenu.innerHTML = `
+      <h2>👨‍🏫 Teacher Panel</h2><hr>
+      <p onclick="showPage('students')">👨‍🎓 Students</p>
+      <p onclick="logout()">🚪 Logout</p>`;
+    showPage("students");
+  }
+  else if(currentRole === "student"){
+    welcomeText.innerText = "Welcome " + displayName + " 🎓";
+    sidebarMenu.innerHTML = `
+      <h2>🎓 Student Panel</h2><hr>
+      <p onclick="showPage('dashboard')">📄 My Dashboard</p>
+      <p onclick="showPage('students')">📋 My Record</p>
+      <p onclick="logout()">🚪 Logout</p>`;
+    showPage("dashboard");
+  }
+}
+
+function loadStudents(){
+  if(unsubscribeStudents){ unsubscribeStudents(); unsubscribeStudents = null; }
+
+  let ref = currentRole === "student"
+    ? query(collection(db,"students"), where("studentId","==",currentStudentId))
+    : collection(db,"students");
+
+  unsubscribeStudents = onSnapshot(ref, (snap)=>{
+    allData = [];
+    snap.forEach(d => allData.push({ id:d.id, ...d.data() }));
+    updateDashboardStats(allData);
+    render(allData);
+  }, (error)=>{
+    alert("Student data load failed: " + error.message);
+  });
+}
+
+function updateDashboardStats(data){
+  const total = data.length;
+  const present = data.filter(s => s.attendance === "Present").length;
+  const absent = data.filter(s => s.attendance === "Absent").length;
+  const late = data.filter(s => s.attendance === "Late").length;
+  const rate = total ? ((present / total) * 100).toFixed(2) : 0;
+
+  totalStudents.innerText = total;
+  presentStudents.innerText = present;
+  absentStudents.innerText = absent;
+  lateStudents.innerText = late;
+  attendanceRate.innerText = rate + "%";
+}
+
+window.addStudents = async function(){
+  if(currentRole !== "admin" && currentRole !== "teacher"){
+    alert("You do not have permission");
+    return;
+  }
+
+  const name = document.getElementById("name").value.trim();
+  const cls = document.getElementById("studentClass").value.trim();
+  const section = document.getElementById("section").value.trim();
+  const roll = document.getElementById("roll").value.trim();
+  const studentEmail = document.getElementById("studentEmail").value.trim();
+  const marks = document.getElementById("marks").value.trim();
+  const attendance = document.getElementById("attendance").value;
+  const attendancePercent = Number(document.getElementById("attendancePercent").value || 0);
+
+  if(!name || !cls || !section || !roll || !studentEmail){
+    alert("Fill all required fields");
+    return;
+  }
+
+  try {
+    await addDoc(collection(db,"students"), {
+      name, className:cls, section, roll, studentEmail, marks,
+      attendance, attendancePercent, studentId:studentEmail,
+      subjects:getSubjectsFromForm()
+    });
+
+    clearStudentForm();
+    document.getElementById("addStudentArea").style.display = "none";
+    document.getElementById("allStudentsArea").style.display = "block";
+    applyFilters();
+  } catch(e){
+    alert("Add failed: " + e.message);
+  }
+};
+
+function getSubjectsFromForm(){
+  return {
+    math:{ classMark:Number(mathClassMark.value||0), quizMark:Number(mathQuizMark.value||0), examMark:Number(mathExamMark.value||0) },
+    english:{ classMark:Number(englishClassMark.value||0), quizMark:Number(englishQuizMark.value||0), examMark:Number(englishExamMark.value||0) },
+    bangla:{ classMark:Number(banglaClassMark.value||0), quizMark:Number(banglaQuizMark.value||0), examMark:Number(banglaExamMark.value||0) },
+    science:{ classMark:Number(scienceClassMark.value||0), quizMark:Number(scienceQuizMark.value||0), examMark:Number(scienceExamMark.value||0) },
+    generalKnowledge:{ classMark:Number(generalKnowledgeClassMark.value||0), quizMark:Number(generalKnowledgeQuizMark.value||0), examMark:Number(generalKnowledgeExamMark.value||0) },
+    islamicEducation:{ classMark:Number(islamicEducationClassMark.value||0), quizMark:Number(islamicEducationQuizMark.value||0), examMark:Number(islamicEducationExamMark.value||0) }
+  };
+}
+
+function clearStudentForm(){
+  ["name","studentClass","section","roll","studentEmail","marks","attendancePercent",
+   "mathClassMark","mathQuizMark","mathExamMark","englishClassMark","englishQuizMark","englishExamMark",
+   "banglaClassMark","banglaQuizMark","banglaExamMark","scienceClassMark","scienceQuizMark","scienceExamMark",
+   "generalKnowledgeClassMark","generalKnowledgeQuizMark","generalKnowledgeExamMark",
+   "islamicEducationClassMark","islamicEducationQuizMark","islamicEducationExamMark"]
+   .forEach(id => document.getElementById(id).value = "");
+  document.getElementById("attendance").value = "Present";
+}
+
+window.applyFilters = function(){
+  const s = document.getElementById("search").value.toLowerCase();
+  const c = document.getElementById("filterClass").value.toLowerCase();
+  const sec = document.getElementById("filterSection").value.toLowerCase();
+
+  const filtered = allData.filter(d =>
+    (d.name || "").toLowerCase().includes(s) &&
+    (c ? (d.className || "").toLowerCase().includes(c) : true) &&
+    (sec ? (d.section || "").toLowerCase().includes(sec) : true)
+  );
+
+  render(filtered);
+};
+
+function render(data){
+if(!document.getElementById("allStudentsArea")) return;
+  const table = document.getElementById("table");
+  table.innerHTML = "";
+
+  data.forEach(d=>{
+    actionButtons = `
+      <button class="actionBtn marksBtn" onclick="openMarksPanel('${d.id}')">Update Marks</button>`;
+
+    if(currentRole === "admin"){
+     actionButtons = `
+        <button class="actionBtn marksBtn" onclick="openMarksPanel('${d.id}')">Update Marks</button>
+        <button class="actionBtn deleteBtn" onclick="delStudent('${d.id}')">Delete</button>
+        <button class="actionBtn editBtn" onclick="editStudent('${d.id}')">Edit</button>`;
+    } else if(currentRole === "teacher"){
+      actionButtons = `<button class="actionBtn editBtn" onclick="editStudent('${d.id}')">Edit Marks</button>`;
+    }
+
+    table.innerHTML += `
+      <tr>
+        <td>${escapeHtml(d.name || "")}</td>
+        <td>${escapeHtml(d.className || "")}</td>
+        <td>${escapeHtml(d.section || "")}</td>
+        <td>${escapeHtml(d.roll || "")}</td>
+        <td>${escapeHtml(d.studentEmail || "")}</td>
+        <td>${escapeHtml(d.marks || "")}</td>
+        <td>${escapeHtml(d.attendance || "")}</td>
+        <td>${escapeHtml(String(d.attendancePercent || 0))}%</td>
+        <td>${actionButtons}</td>
+      </tr>`;
+  });
+}
+
+window.delStudent = async function(id){
+  if(currentRole !== "admin"){ alert("Only admin can delete"); return; }
+  if(!confirm("Are you sure?")) return;
+  await deleteDoc(doc(db,"students",id));
+};
+
+window.editStudent = async function(id){
+  const student = allData.find(s => s.id === id);
+  if(!student){ alert("Student not found"); return; }
+
+  const newMarks = prompt("Overall Marks", student.marks || "");
+  if(newMarks === null) return;
+
+  const newAttendance = prompt("Attendance (Present / Absent / Late)", student.attendance || "");
+  if(newAttendance === null) return;
+
+  const newAttendancePercent = prompt("Attendance %", student.attendancePercent || 0);
+  if(newAttendancePercent === null) return;
+
+  await updateDoc(doc(db,"students",id), {
+    marks:newMarks.trim(),
+    attendance:newAttendance.trim(),
+    attendancePercent:Number(newAttendancePercent || 0)
+  });
+};
+
+window.downloadCSV = function(){
+  const rows = allData.map(s =>
+    `"${csvSafe(s.name||"")}","${csvSafe(s.className||"")}","${csvSafe(s.section||"")}","${csvSafe(s.roll||"")}","${csvSafe(s.studentEmail||"")}","${csvSafe(s.marks||"")}","${csvSafe(s.attendance||"")}","${csvSafe(s.attendancePercent||0)}"`
+  );
+
+  const csv = "Name,Class,Section,Roll,Student Email,Marks,Attendance,Attendance Percent\n" + rows.join("\n");
+  const blob = new Blob([csv], { type:"text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "students.csv";
+  a.click();
+  URL.revokeObjectURL(url);
+};
+
+function csvSafe(v){ return String(v).replace(/"/g,'""'); }
+function escapeHtml(v){
+  return String(v)
+    .replaceAll("&","&amp;").replaceAll("<","&lt;")
+    .replaceAll(">","&gt;").replaceAll('"',"&quot;")
+    .replaceAll("'","&#39;");
+}
+
+window.closeMarksPanel = function(){
+  selectedStudentForMarks = null;
+  document.getElementById("marksPanel").style.display = "none";
+};
+
+</script>
+
+</body>
+</html>
