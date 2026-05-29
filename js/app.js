@@ -6,10 +6,13 @@ import {
   onSnapshot,
   deleteDoc,
   doc,
+  setDoc,
   updateDoc,
   getDoc,
+  getDocs,
   query,
-  where
+  where,
+  serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 import {
@@ -29,6 +32,8 @@ const appFirebase = initializeApp(firebaseConfig);
 const db = getFirestore(appFirebase);
 const auth = getAuth(appFirebase);
 
+window.__appLoaded = true;
+
 const subjectsList = [
   { key: "math", label: "Math" },
   { key: "english", label: "English" },
@@ -38,13 +43,49 @@ const subjectsList = [
   { key: "islamicEducation", label: "Islamic Education" }
 ];
 
+const termOptions = [
+  { key: "firstTerm", label: "First Term" },
+  { key: "midTerm", label: "Mid Term" },
+  { key: "finalTerm", label: "Final Term" },
+  { key: "yearlyFinal", label: "Yearly Final" }
+];
+
+const classOptions = [
+  "Play",
+  "Nursery",
+  "KG",
+  "Class 1",
+  "Class 2",
+  "Class 3",
+  "Class 4",
+  "Class 5",
+  "Class 6",
+  "Class 7",
+  "Class 8",
+  "Class 9",
+  "Class 10"
+];
+
+const sectionOptions = ["A", "B", "C"];
+
 let allData = [];
 let filteredData = [];
 let attendanceStudents = [];
+let monthlyAttendanceData = [];
 let currentRole = "";
 let currentStudentId = "";
+let currentDisplayName = "";
+let currentTeacherAssignments = [];
+let currentResultTerm = "finalTerm";
+let currentModalEditable = false;
 let selectedStudentForMarks = null;
 let unsubscribeStudents = null;
+let unsubscribeNotices = null;
+let studentKeyBackfillDone = false;
+let attendanceRecordBackfillDone = false;
+let allNotices = [];
+let activityLogs = [];
+let filteredActivityLogs = [];
 
 const $ = (id) => document.getElementById(id);
 
@@ -58,6 +99,124 @@ function hide(id) {
   if (element) element.style.display = "none";
 }
 
+function setupClassSectionDropdowns() {
+  ["attendanceClass", "reportClass"].forEach((id) => {
+    const select = $(id);
+    if (select) select.onchange = null;
+  });
+
+  setSelectOptions("studentClass", classOptions, "Select Class");
+  setSelectOptions("section", sectionOptions, "Select Section");
+  setSelectOptions("filterClass", classOptions, "All Classes");
+  setSelectOptions("filterSection", sectionOptions, "All Sections");
+  setSelectOptions("attendanceClass", classOptions, "Select Class");
+  setSelectOptions("attendanceSection", sectionOptions, "Select Section");
+  setSelectOptions("reportClass", classOptions, "All Classes");
+  setSelectOptions("reportSection", sectionOptions, "All Sections");
+  applyTeacherScopedDropdowns();
+}
+
+function setSelectOptions(id, options, placeholder) {
+  const select = $(id);
+  if (!select) return;
+
+  select.innerHTML = [
+    `<option value="">${escapeHtml(placeholder)}</option>`,
+    ...options.map((option) =>
+      `<option value="${escapeHtml(option)}">${escapeHtml(option)}</option>`
+    )
+  ].join("");
+}
+
+function applyTeacherScopedDropdowns() {
+  if (currentRole !== "teacher" || !currentTeacherAssignments.length) return;
+
+  const assignedClasses = uniqueValues(
+    currentTeacherAssignments.map((assignment) => assignment.classNameRaw)
+  );
+
+  setSelectOptions("attendanceClass", assignedClasses, "Select Assigned Class");
+  setSelectOptions("reportClass", assignedClasses, "All Assigned Classes");
+
+  ensureTeacherAttendanceSelection();
+  updateTeacherSectionDropdown("reportClass", "reportSection", "All Assigned Sections");
+
+  const attendanceClassSelect = $("attendanceClass");
+  const reportClassSelect = $("reportClass");
+
+  if (attendanceClassSelect) {
+    attendanceClassSelect.onchange = () => {
+      updateTeacherSectionDropdown("attendanceClass", "attendanceSection", "Select Assigned Section", true);
+      clearAttendanceSheet();
+    };
+  }
+
+  if (reportClassSelect) {
+    reportClassSelect.onchange = () => {
+      updateTeacherSectionDropdown("reportClass", "reportSection", "All Assigned Sections", false);
+      monthlyAttendanceData = [];
+      updateMonthlyReportSubtitle();
+      renderMonthlyReport(monthlyAttendanceData);
+    };
+  }
+}
+
+function ensureTeacherAttendanceSelection() {
+  if (currentRole !== "teacher" || !currentTeacherAssignments.length) return;
+
+  const classSelect = $("attendanceClass");
+  if (!classSelect) return;
+
+  const assignedClasses = uniqueValues(
+    currentTeacherAssignments.map((assignment) => assignment.classNameRaw)
+  );
+
+  if (!classSelect.value && assignedClasses.length) {
+    classSelect.value = assignedClasses[0];
+  }
+
+  updateTeacherSectionDropdown("attendanceClass", "attendanceSection", "Select Assigned Section", true);
+}
+
+function updateTeacherSectionDropdown(classSelectId, sectionSelectId, placeholder, selectFirst = false) {
+  if (currentRole !== "teacher" || !currentTeacherAssignments.length) return;
+
+  const classSelect = $(classSelectId);
+  if (!classSelect) return;
+
+  const selectedClass = normalizeClassName(classSelect.value);
+  const sectionSelect = $(sectionSelectId);
+  const previousSection = sectionSelect ? sectionSelect.value : "";
+  const matchingAssignments = currentTeacherAssignments.filter((assignment) =>
+    !selectedClass || normalizeClassName(assignment.classNameRaw) === selectedClass
+  );
+  const assignedSections = uniqueValues(
+    matchingAssignments.map((assignment) => assignment.sectionRaw).filter(Boolean)
+  );
+
+  setSelectOptions(sectionSelectId, assignedSections, placeholder);
+
+  if (!sectionSelect) return;
+
+  if (previousSection && assignedSections.includes(previousSection)) {
+    sectionSelect.value = previousSection;
+    return;
+  }
+
+  if (selectFirst && assignedSections.length) {
+    sectionSelect.value = assignedSections[0];
+    return;
+  }
+
+  if (assignedSections.length === 1) {
+    sectionSelect.value = assignedSections[0];
+  }
+}
+
+function uniqueValues(values) {
+  return Array.from(new Set(values.map((value) => String(value || "").trim()).filter(Boolean)));
+}
+
 window.login = async function () {
   const email = $("email").value.trim();
   const password = $("password").value.trim();
@@ -67,17 +226,39 @@ window.login = async function () {
     return;
   }
 
+  setLoginState(true, "Logging in...");
+
   try {
     await signInWithEmailAndPassword(auth, email, password);
   } catch (error) {
+    setLoginState(false, "");
     alert("Login failed: " + error.message);
   }
 };
+
+function setLoginState(isLoading, message) {
+  const button = $("loginBtn");
+  const status = $("loginStatus");
+
+  if (button) {
+    button.disabled = isLoading;
+    button.innerText = isLoading ? "Logging in..." : "Login";
+  }
+
+  if (status) {
+    status.innerText = message || "";
+  }
+}
 
 window.logout = async function () {
   if (unsubscribeStudents) {
     unsubscribeStudents();
     unsubscribeStudents = null;
+  }
+
+  if (unsubscribeNotices) {
+    unsubscribeNotices();
+    unsubscribeNotices = null;
   }
 
   await signOut(auth);
@@ -87,16 +268,27 @@ onAuthStateChanged(auth, async (user) => {
   if (!user) {
     show("loginBox", "flex");
     hide("app");
+    setLoginState(false, "");
 
     currentRole = "";
     currentStudentId = "";
+    currentDisplayName = "";
+    currentTeacherAssignments = [];
+    studentKeyBackfillDone = false;
+    attendanceRecordBackfillDone = false;
     allData = [];
     filteredData = [];
     attendanceStudents = [];
+    allNotices = [];
 
     if (unsubscribeStudents) {
       unsubscribeStudents();
       unsubscribeStudents = null;
+    }
+
+    if (unsubscribeNotices) {
+      unsubscribeNotices();
+      unsubscribeNotices = null;
     }
 
     return;
@@ -115,12 +307,17 @@ onAuthStateChanged(auth, async (user) => {
 
     currentRole = userData.role || "";
     currentStudentId = userData.studentId || user.email;
+    currentDisplayName = userData.name || user.email;
+    currentTeacherAssignments = normalizeTeacherAssignments(userData);
 
     hide("loginBox");
     show("app");
+    setLoginState(false, "");
 
-    setupRoleUI(userData.name || user.email);
+    setupClassSectionDropdowns();
+    setupRoleUI(currentDisplayName);
     loadStudents();
+    loadNotices();
   } catch (error) {
     alert("Role check failed: " + error.message);
   }
@@ -131,9 +328,14 @@ function setupRoleUI(displayName) {
     $("welcomeText").innerText = "Welcome Admin";
     $("sidebarMenu").innerHTML = `
       <h2>Admin Panel</h2><hr>
-      <p onclick="showPage('dashboard')">Dashboard</p>
-      <p onclick="showPage('students')">Students</p>
-      <p onclick="showPage('attendance')">Attendance</p>
+      <p data-page="dashboard" onclick="showPage('dashboard')">Dashboard</p>
+      <p data-page="students" onclick="showPage('students')">Students</p>
+      <p data-page="teachers" onclick="showPage('teachers')">Teachers</p>
+      <p data-page="notices" onclick="showPage('notices')">Notice Board</p>
+      <p data-page="attendance" onclick="showPage('attendance')">Attendance</p>
+      <p data-page="monthlyReport" onclick="showPage('monthlyReport')">Monthly Report</p>
+      <p data-page="backup" onclick="showPage('backup')">Backup</p>
+      <p data-page="activityLog" onclick="showPage('activityLog')">Activity Log</p>
       <p onclick="logout()">Logout</p>
     `;
 
@@ -147,14 +349,17 @@ function setupRoleUI(displayName) {
     $("welcomeText").innerText = "Welcome " + displayName;
     $("sidebarMenu").innerHTML = `
       <h2>Teacher Panel</h2><hr>
-      <p onclick="showPage('dashboard')">Dashboard</p>
-      <p onclick="showPage('students')">Students</p>
-      <p onclick="showPage('attendance')">Attendance</p>
+      <p data-page="dashboard" onclick="showPage('dashboard')">Dashboard</p>
+      <p data-page="students" onclick="showPage('students')">Students</p>
+      <p data-page="notices" onclick="showPage('notices')">Notice Board</p>
+      <p data-page="attendance" onclick="showPage('attendance')">Attendance</p>
+      <p data-page="monthlyReport" onclick="showPage('monthlyReport')">Monthly Report</p>
       <p onclick="logout()">Logout</p>
     `;
 
     show("addStudentBtn", "inline-block");
     show("csvBtn", "inline-block");
+    showTeacherAssignmentNotice();
     showPage("dashboard");
     return;
   }
@@ -163,8 +368,8 @@ function setupRoleUI(displayName) {
     $("welcomeText").innerText = "Welcome " + displayName;
     $("sidebarMenu").innerHTML = `
       <h2>Student Panel</h2><hr>
-      <p onclick="showPage('dashboard')">My Dashboard</p>
-      <p onclick="showPage('students')">My Record</p>
+      <p data-page="dashboard" onclick="showPage('dashboard')">My Dashboard</p>
+      <p data-page="students" onclick="showPage('students')">My Record</p>
       <p onclick="logout()">Logout</p>
     `;
 
@@ -179,13 +384,21 @@ function setupRoleUI(displayName) {
 }
 
 window.showPage = function (page) {
+  setActiveNav(page);
+
   hide("dashboardPage");
   hide("studentsPage");
+  hide("noticePage");
+  hide("backupPage");
+  hide("activityLogPage");
+  hide("teachersPage");
   hide("attendancePage");
+  hide("monthlyReportPage");
   closeStudentModal();
 
   if (page === "dashboard") {
     show("dashboardPage");
+    renderTeacherProfileCard();
     return;
   }
 
@@ -216,10 +429,1110 @@ window.showPage = function (page) {
       return;
     }
 
+    if (currentRole === "teacher") {
+      applyTeacherScopedDropdowns();
+    }
+
     show("attendancePage");
+    if (currentRole === "teacher") {
+      ensureTeacherAttendanceSelection();
+    }
+    if (!$("attendanceDate").value) {
+      $("attendanceDate").value = getTodayParts().date;
+    }
+    clearAttendanceSheet();
+    return;
+  }
+
+  if (page === "notices") {
+    if (currentRole !== "admin" && currentRole !== "teacher") {
+      alert("Only admin and teacher can publish notices");
+      showPage("dashboard");
+      return;
+    }
+
+    show("noticePage");
+    renderNoticeBoard();
+    return;
+  }
+
+  if (page === "teachers") {
+    if (currentRole !== "admin") {
+      alert("Only admin can assign teachers");
+      showPage("dashboard");
+      return;
+    }
+
+    show("teachersPage");
+    loadTeachersForAssignment();
+    return;
+  }
+
+  if (page === "backup") {
+    if (currentRole !== "admin") {
+      alert("Only admin can download backups");
+      showPage("dashboard");
+      return;
+    }
+
+    show("backupPage");
+    if ($("backupStatus")) {
+      $("backupStatus").innerText = "";
+    }
+    return;
+  }
+
+  if (page === "activityLog") {
+    if (currentRole !== "admin") {
+      alert("Only admin can view activity logs");
+      showPage("dashboard");
+      return;
+    }
+
+    show("activityLogPage");
+    loadActivityLogs();
+    return;
+  }
+
+  if (page === "monthlyReport") {
+    if (currentRole !== "admin" && currentRole !== "teacher") {
+      alert("You do not have permission");
+      showPage("dashboard");
+      return;
+    }
+
+    show("monthlyReportPage");
+
+    if (!$("reportMonth").value) {
+      $("reportMonth").value = getTodayParts().month;
+    }
+
+    updateMonthlyReportSubtitle();
+    renderMonthlyReport(monthlyAttendanceData);
+
     return;
   }
 };
+
+async function addActivityLog(action, details = {}) {
+  const user = auth.currentUser;
+
+  if (!user) return;
+
+  try {
+    await addDoc(collection(db, "activityLogs"), {
+      action,
+      details,
+      userId: user.uid,
+      userEmail: user.email || "",
+      userName: currentDisplayName || user.email || currentRole,
+      userRole: currentRole,
+      createdAtMillis: Date.now(),
+      createdAt: serverTimestamp()
+    });
+  } catch (error) {
+    console.warn("Activity log failed:", error.message);
+  }
+}
+
+window.loadActivityLogs = async function () {
+  if (currentRole !== "admin") {
+    alert("Only admin can view activity logs");
+    return;
+  }
+
+  try {
+    const snap = await getDocs(collection(db, "activityLogs"));
+    activityLogs = [];
+
+    snap.forEach((item) => {
+      activityLogs.push({ id: item.id, ...item.data() });
+    });
+
+    activityLogs.sort((a, b) => Number(b.createdAtMillis || 0) - Number(a.createdAtMillis || 0));
+    renderActivityLogs();
+  } catch (error) {
+    alert("Activity log load failed: " + error.message);
+  }
+};
+
+window.renderActivityLogs = function () {
+  const table = $("activityLogTable");
+  const empty = $("emptyActivityLogs");
+
+  if (!table || !empty) return;
+
+  updateActivityCustomDateState();
+
+  const filtered = getFilteredActivityLogs();
+  filteredActivityLogs = filtered;
+
+  table.innerHTML = "";
+  empty.style.display = filtered.length ? "none" : "block";
+
+  filtered.slice(0, 100).forEach((log) => {
+    const row = document.createElement("tr");
+    row.innerHTML = `
+      <td>${escapeHtml(formatActivityDate(log.createdAtMillis))}</td>
+      <td>${escapeHtml(log.userName || log.userEmail || "-")}</td>
+      <td>${escapeHtml(log.userRole || "-")}</td>
+      <td>${escapeHtml(log.action || "-")}</td>
+      <td>${escapeHtml(formatLogDetails(log.details))}</td>
+    `;
+    table.appendChild(row);
+  });
+};
+
+function updateActivityCustomDateState() {
+  const customDate = $("activityCustomDate");
+  if (!customDate) return;
+
+  customDate.disabled = ($("activityDateFilter")?.value || "all") !== "custom";
+}
+
+function getFilteredActivityLogs() {
+  const search = ($("activitySearch")?.value || "").trim().toLowerCase();
+  const dateFilter = $("activityDateFilter")?.value || "all";
+  const customDate = $("activityCustomDate")?.value || "";
+  const actionFilter = $("activityActionFilter")?.value || "all";
+
+  return activityLogs.filter((log) => {
+    const text = [
+      log.action,
+      log.userName,
+      log.userEmail,
+      log.userRole,
+      formatLogDetails(log.details)
+    ].join(" ").toLowerCase();
+
+    return text.includes(search)
+      && activityDateMatches(log.createdAtMillis, dateFilter, customDate)
+      && activityActionMatches(log.action, actionFilter);
+  });
+}
+
+function activityDateMatches(value, dateFilter, customDate) {
+  if (dateFilter === "all") return true;
+  if (!value) return false;
+
+  const logDate = new Date(value);
+  const now = new Date();
+
+  if (dateFilter === "today") {
+    return logDate.toDateString() === now.toDateString();
+  }
+
+  if (dateFilter === "7days") {
+    const sevenDaysAgo = new Date(now);
+    sevenDaysAgo.setDate(now.getDate() - 7);
+    sevenDaysAgo.setHours(0, 0, 0, 0);
+    return logDate >= sevenDaysAgo;
+  }
+
+  if (dateFilter === "custom") {
+    if (!customDate) return true;
+    return getDateInputValue(logDate) === customDate;
+  }
+
+  return true;
+}
+
+function activityActionMatches(action, filter) {
+  if (filter === "all") return true;
+
+  const actionText = String(action || "").toLowerCase();
+  const groups = {
+    student: ["student"],
+    attendance: ["attendance"],
+    marks: ["marks", "result"],
+    notice: ["notice"],
+    teacher: ["teacher", "assignment"],
+    backup: ["backup", "restore", "repair"]
+  };
+
+  return (groups[filter] || []).some((keyword) => actionText.includes(keyword));
+}
+
+function getDateInputValue(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+window.downloadActivityLogCSV = function () {
+  if (currentRole !== "admin") {
+    alert("Only admin can download activity logs");
+    return;
+  }
+
+  const dataToDownload = filteredActivityLogs.length || hasActivityLogFilter()
+    ? filteredActivityLogs
+    : activityLogs;
+
+  const rows = dataToDownload.map((log) => [
+    formatActivityDate(log.createdAtMillis),
+    log.userName || log.userEmail || "",
+    log.userEmail || "",
+    log.userRole || "",
+    log.action || "",
+    formatLogDetails(log.details)
+  ].map(csvSafe).join(","));
+
+  const csv = "Date Time,User,Email,Role,Action,Details\n" + rows.join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+
+  link.href = url;
+  link.download = "activity-logs.csv";
+  link.click();
+
+  URL.revokeObjectURL(url);
+};
+
+function hasActivityLogFilter() {
+  return Boolean(
+    ($("activitySearch")?.value || "").trim() ||
+    ($("activityDateFilter")?.value || "all") !== "all" ||
+    ($("activityActionFilter")?.value || "all") !== "all"
+  );
+}
+
+function formatActivityDate(value) {
+  if (!value) return "-";
+
+  return new Date(value).toLocaleString("en-GB", {
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit"
+  });
+}
+
+function formatLogDetails(details) {
+  if (!details || typeof details !== "object") return "-";
+
+  return Object.entries(details)
+    .map(([key, value]) => `${key}: ${Array.isArray(value) ? value.join(", ") : value}`)
+    .join(" | ");
+}
+
+function loadNotices() {
+  if (unsubscribeNotices) {
+    unsubscribeNotices();
+    unsubscribeNotices = null;
+  }
+
+  unsubscribeNotices = onSnapshot(collection(db, "notices"), (snap) => {
+    allNotices = [];
+    snap.forEach((item) => allNotices.push({ id: item.id, ...item.data() }));
+    allNotices.sort((a, b) =>
+      Number(b.createdAtMillis || 0) - Number(a.createdAtMillis || 0)
+    );
+    renderNoticeBoard();
+  }, (error) => {
+    console.warn("Notice load failed:", error);
+    allNotices = [];
+    renderNoticeBoard();
+  });
+}
+
+function getVisibleNotices() {
+  return allNotices.filter((notice) => {
+    if (notice.audience === "all") return true;
+    if (notice.audience === "students" && currentRole === "student") return true;
+    if (notice.audience === "teachers" && currentRole === "teacher") return true;
+    return currentRole === "admin";
+  });
+}
+
+function renderNoticeBoard() {
+  renderNoticeList("dashboardNotices", getVisibleNotices().slice(0, 5), false);
+
+  if (currentRole === "admin" || currentRole === "teacher") {
+    renderNoticeList("noticeManageList", allNotices, true);
+  }
+}
+
+function renderNoticeList(containerId, notices, canManage) {
+  const container = $(containerId);
+  if (!container) return;
+
+  if (!notices.length) {
+    container.innerHTML = `<div class="emptyState">No notices found</div>`;
+    return;
+  }
+
+  container.innerHTML = "";
+
+  notices.forEach((notice) => {
+    const item = document.createElement("div");
+    item.className = "noticeItem";
+    const manageButton = canManage && currentRole === "admin"
+      ? `<button class="actionBtn deleteBtn" onclick="deleteNotice('${notice.id}')">Delete</button>`
+      : "";
+
+    item.innerHTML = `
+      <div class="noticeHeader">
+        <div>
+          <h4 class="noticeTitle">${escapeHtml(notice.title || "Untitled Notice")}</h4>
+          <p class="noticeMeta">
+            ${escapeHtml(getNoticeAudienceLabel(notice.audience))}
+            | ${escapeHtml(notice.createdByName || "Unknown")}
+            | ${escapeHtml(formatNoticeDate(notice.createdAtMillis))}
+          </p>
+        </div>
+        ${manageButton}
+      </div>
+      <p class="noticeMessage">${escapeHtml(notice.message || "")}</p>
+    `;
+
+    container.appendChild(item);
+  });
+}
+
+function getNoticeAudienceLabel(audience) {
+  if (audience === "students") return "Students";
+  if (audience === "teachers") return "Teachers";
+  return "All";
+}
+
+function formatNoticeDate(value) {
+  if (!value) return "-";
+  return new Date(value).toLocaleDateString("en-GB", {
+    year: "numeric",
+    month: "short",
+    day: "2-digit"
+  });
+}
+
+window.publishNotice = async function () {
+  if (currentRole !== "admin" && currentRole !== "teacher") {
+    alert("You do not have permission");
+    return;
+  }
+
+  const title = $("noticeTitle").value.trim();
+  const message = $("noticeMessage").value.trim();
+  const audience = $("noticeAudience").value;
+  const user = auth.currentUser;
+
+  if (!title || !message) {
+    alert("Enter notice title and message");
+    return;
+  }
+
+  try {
+    await addDoc(collection(db, "notices"), {
+      title,
+      message,
+      audience,
+      createdBy: user ? user.uid : "",
+      createdByName: currentDisplayName || currentRole,
+      createdByRole: currentRole,
+      createdAtMillis: Date.now(),
+      createdAt: serverTimestamp()
+    });
+
+    await addActivityLog("Notice Published", { title, audience });
+
+    $("noticeTitle").value = "";
+    $("noticeMessage").value = "";
+    $("noticeAudience").value = "all";
+    alert("Notice published successfully");
+  } catch (error) {
+    alert("Notice publish failed: " + error.message);
+  }
+};
+
+window.deleteNotice = async function (id) {
+  if (currentRole !== "admin") {
+    alert("Only admin can delete notices");
+    return;
+  }
+
+  if (!confirm("Delete this notice?")) return;
+
+  try {
+    const notice = allNotices.find((item) => item.id === id);
+    await deleteDoc(doc(db, "notices", id));
+    await addActivityLog("Notice Deleted", {
+      noticeId: id,
+      title: notice?.title || "-"
+    });
+  } catch (error) {
+    alert("Notice delete failed: " + error.message);
+  }
+};
+
+window.downloadFullBackup = async function () {
+  if (currentRole !== "admin") {
+    alert("Only admin can download backup");
+    return;
+  }
+
+  const status = $("backupStatus");
+  if (status) status.innerText = "Preparing backup...";
+
+  try {
+    const backup = {
+      app: "FH School Management System",
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      exportedBy: auth.currentUser ? auth.currentUser.uid : "",
+      collections: {
+        students: await getCollectionBackup("students"),
+        attendanceRecords: await getCollectionBackup("attendanceRecords"),
+        notices: await getCollectionBackup("notices"),
+        users: await getCollectionBackup("users")
+      }
+    };
+
+    const json = JSON.stringify(backup, null, 2);
+    const blob = new Blob([json], { type: "application/json;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    const stamp = getBackupFileStamp();
+
+    link.href = url;
+    link.download = `fh-school-backup-${stamp}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+
+    if (status) {
+      status.innerText = `Backup downloaded. Students: ${backup.collections.students.length}, Attendance: ${backup.collections.attendanceRecords.length}, Notices: ${backup.collections.notices.length}, Users: ${backup.collections.users.length}`;
+    }
+
+    await addActivityLog("Backup Downloaded", {
+      students: backup.collections.students.length,
+      attendanceRecords: backup.collections.attendanceRecords.length,
+      notices: backup.collections.notices.length,
+      users: backup.collections.users.length
+    });
+  } catch (error) {
+    if (status) status.innerText = "";
+    alert("Backup failed: " + error.message);
+  }
+};
+
+window.repairClassNames = async function () {
+  if (currentRole !== "admin") {
+    alert("Only admin can repair class names");
+    return;
+  }
+
+  if (!confirm("Repair class names to standard format like Class 1, Class 2?")) return;
+
+  const status = $("backupStatus");
+  if (status) status.innerText = "Repairing class names...";
+
+  try {
+    const studentsFixed = await repairCollectionClassNames("students");
+    const attendanceFixed = await repairCollectionClassNames("attendanceRecords");
+
+    studentKeyBackfillDone = false;
+    attendanceRecordBackfillDone = false;
+
+    if (status) {
+      status.innerText = `Repair complete. Students updated: ${studentsFixed}, Attendance records updated: ${attendanceFixed}`;
+    }
+
+    await addActivityLog("Class Names Repaired", {
+      studentsUpdated: studentsFixed,
+      attendanceRecordsUpdated: attendanceFixed
+    });
+
+    alert("Class name repair completed");
+  } catch (error) {
+    if (status) status.innerText = "";
+    alert("Repair failed: " + error.message);
+  }
+};
+
+window.previewRestoreFile = async function () {
+  if (currentRole !== "admin") {
+    alert("Only admin can preview restore files");
+    return;
+  }
+
+  const fileInput = $("restoreFile");
+  const previewArea = $("restorePreviewArea");
+
+  if (!fileInput || !fileInput.files || !fileInput.files.length) {
+    alert("Select a JSON backup file first");
+    return;
+  }
+
+  try {
+    const text = await fileInput.files[0].text();
+    const backup = JSON.parse(text);
+    const validation = validateBackupFile(backup);
+
+    renderRestorePreview(backup, validation, fileInput.files[0].name);
+    show("restorePreviewArea");
+  } catch (error) {
+    if (previewArea) {
+      previewArea.innerHTML = `
+        <div class="restoreWarning">
+          Invalid backup file: ${escapeHtml(error.message)}
+        </div>
+      `;
+      show("restorePreviewArea");
+    }
+  }
+};
+
+window.compareRestoreFile = async function () {
+  if (currentRole !== "admin") {
+    alert("Only admin can compare restore files");
+    return;
+  }
+
+  const fileInput = $("restoreFile");
+  const previewArea = $("restorePreviewArea");
+
+  if (!fileInput || !fileInput.files || !fileInput.files.length) {
+    alert("Select a JSON backup file first");
+    return;
+  }
+
+  try {
+    const text = await fileInput.files[0].text();
+    const backup = JSON.parse(text);
+    const validation = validateBackupFile(backup);
+
+    renderRestorePreview(backup, validation, fileInput.files[0].name);
+    show("restorePreviewArea");
+
+    if (!validation.isValid) return;
+
+    const compareRows = await getRestoreCompareRows(backup);
+    renderRestoreCompare(compareRows);
+  } catch (error) {
+    if (previewArea) {
+      previewArea.innerHTML = `
+        <div class="restoreWarning">
+          Compare failed: ${escapeHtml(error.message)}
+        </div>
+      `;
+      show("restorePreviewArea");
+    }
+  }
+};
+
+window.restoreNewBackupData = async function () {
+  if (currentRole !== "admin") {
+    alert("Only admin can restore backup data");
+    return;
+  }
+
+  const fileInput = $("restoreFile");
+  const previewArea = $("restorePreviewArea");
+  const confirmInput = $("restoreConfirm");
+
+  if (!fileInput || !fileInput.files || !fileInput.files.length) {
+    alert("Select a JSON backup file first");
+    return;
+  }
+
+  if (!confirmInput || !confirmInput.checked) {
+    alert("Please tick the restore confirmation checkbox first");
+    return;
+  }
+
+  if (!confirm("Restore only new data from this backup? Existing documents will be skipped.")) {
+    return;
+  }
+
+  try {
+    const text = await fileInput.files[0].text();
+    const backup = JSON.parse(text);
+    const validation = validateBackupFile(backup);
+
+    renderRestorePreview(backup, validation, fileInput.files[0].name);
+    show("restorePreviewArea");
+
+    if (!validation.isValid) {
+      alert("Backup file has validation warnings. Fix the file before restore.");
+      return;
+    }
+
+    if (previewArea) {
+      previewArea.insertAdjacentHTML(
+        "beforeend",
+        `<div class="restoreWarning restoreRunning">Restore running. Please wait...</div>`
+      );
+    }
+
+    const resultRows = await restoreOnlyNewDocuments(backup);
+    renderRestoreResult(resultRows);
+    await addActivityLog("Backup Restored New Data", summarizeRestoreRows(resultRows));
+    confirmInput.checked = false;
+  } catch (error) {
+    if (previewArea) {
+      previewArea.innerHTML = `
+        <div class="restoreWarning">
+          Restore failed: ${escapeHtml(error.message)}
+        </div>
+      `;
+      show("restorePreviewArea");
+    }
+  }
+};
+
+function validateBackupFile(backup) {
+  const warnings = [];
+
+  if (!backup || typeof backup !== "object") {
+    warnings.push("Backup file is not a valid JSON object.");
+    return { isValid: false, warnings };
+  }
+
+  if (!backup.collections || typeof backup.collections !== "object") {
+    warnings.push("Missing collections object.");
+    return { isValid: false, warnings };
+  }
+
+  ["students", "attendanceRecords", "notices", "users"].forEach((collectionName) => {
+    if (!Array.isArray(backup.collections[collectionName])) {
+      warnings.push(`${collectionName} collection is missing or not an array.`);
+    }
+  });
+
+  Object.entries(backup.collections || {}).forEach(([collectionName, rows]) => {
+    if (!Array.isArray(rows)) return;
+
+    rows.forEach((row, index) => {
+      if (!row || typeof row !== "object" || !row.id || !row.data) {
+        warnings.push(`${collectionName} item ${index + 1} is missing id or data.`);
+      }
+    });
+  });
+
+  return {
+    isValid: warnings.length === 0,
+    warnings
+  };
+}
+
+function renderRestorePreview(backup, validation, fileName) {
+  const previewArea = $("restorePreviewArea");
+  if (!previewArea) return;
+
+  const collections = backup.collections || {};
+  const summaryItems = ["students", "attendanceRecords", "notices", "users"]
+    .map((collectionName) => {
+      const count = Array.isArray(collections[collectionName])
+        ? collections[collectionName].length
+        : 0;
+
+      return `
+        <div class="restoreSummaryItem">
+          <b>${escapeHtml(getBackupCollectionLabel(collectionName))}</b>
+          <p>${count}</p>
+        </div>
+      `;
+    })
+    .join("");
+
+  const warningsHtml = validation.warnings.length
+    ? `
+      <div class="restoreWarning">
+        <b>Warnings</b>
+        <ul>
+          ${validation.warnings.map((warning) => `<li>${escapeHtml(warning)}</li>`).join("")}
+        </ul>
+      </div>
+    `
+    : "";
+
+  previewArea.innerHTML = `
+    <div class="restorePreviewHeader">
+      <b>${validation.isValid ? "Backup file looks valid" : "Backup file needs attention"}</b>
+      <p>File: ${escapeHtml(fileName)}</p>
+      <p>Exported at: ${escapeHtml(backup.exportedAt || "-")}</p>
+      <p>App: ${escapeHtml(backup.app || "-")} | Version: ${escapeHtml(String(backup.version || "-"))}</p>
+    </div>
+    <div class="restoreSummaryGrid">
+      ${summaryItems}
+    </div>
+    ${warningsHtml}
+  `;
+}
+
+async function getRestoreCompareRows(backup) {
+  const collectionNames = ["students", "attendanceRecords", "notices", "users"];
+  const rows = [];
+
+  for (const collectionName of collectionNames) {
+    const backupRows = Array.isArray(backup.collections?.[collectionName])
+      ? backup.collections[collectionName]
+      : [];
+    const currentSnap = await getDocs(collection(db, collectionName));
+    const currentIds = new Set();
+
+    currentSnap.forEach((docSnap) => currentIds.add(docSnap.id));
+
+    const backupIds = backupRows
+      .map((row) => row.id)
+      .filter(Boolean);
+    const existing = backupIds.filter((id) => currentIds.has(id)).length;
+    const newItems = backupIds.length - existing;
+
+    rows.push({
+      collectionName,
+      backupCount: backupIds.length,
+      currentCount: currentIds.size,
+      existing,
+      newItems
+    });
+  }
+
+  return rows;
+}
+
+function renderRestoreCompare(rows) {
+  const previewArea = $("restorePreviewArea");
+  if (!previewArea) return;
+
+  const html = `
+    <table class="compareTable">
+      <thead>
+        <tr>
+          <th>Collection</th>
+          <th>Backup</th>
+          <th>Current DB</th>
+          <th>Existing IDs</th>
+          <th>New IDs</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rows.map((row) => `
+          <tr>
+            <td>${escapeHtml(getBackupCollectionLabel(row.collectionName))}</td>
+            <td>${row.backupCount}</td>
+            <td>${row.currentCount}</td>
+            <td>${row.existing}</td>
+            <td>${row.newItems}</td>
+          </tr>
+        `).join("")}
+      </tbody>
+    </table>
+    <div class="restoreWarning">
+      Dry-run only. No data was restored or changed.
+    </div>
+  `;
+
+  previewArea.insertAdjacentHTML("beforeend", html);
+}
+
+async function restoreOnlyNewDocuments(backup) {
+  const collectionNames = ["students", "attendanceRecords", "notices", "users"];
+  const resultRows = [];
+
+  for (const collectionName of collectionNames) {
+    const backupRows = Array.isArray(backup.collections?.[collectionName])
+      ? backup.collections[collectionName]
+      : [];
+
+    const result = {
+      collectionName,
+      added: 0,
+      skipped: 0,
+      failed: 0
+    };
+
+    for (const row of backupRows) {
+      if (!row?.id || !row?.data) {
+        result.failed++;
+        continue;
+      }
+
+      try {
+        const targetRef = doc(db, collectionName, row.id);
+        const existingSnap = await getDoc(targetRef);
+
+        if (existingSnap.exists()) {
+          result.skipped++;
+          continue;
+        }
+
+        await setDoc(targetRef, row.data);
+        result.added++;
+      } catch (error) {
+        console.error("Restore item failed", collectionName, row.id, error);
+        result.failed++;
+      }
+    }
+
+    resultRows.push(result);
+  }
+
+  return resultRows;
+}
+
+function renderRestoreResult(rows) {
+  const previewArea = $("restorePreviewArea");
+  if (!previewArea) return;
+
+  previewArea.querySelector(".restoreRunning")?.remove();
+
+  const failedCount = rows.reduce((total, row) => total + row.failed, 0);
+
+  const html = `
+    <table class="compareTable">
+      <thead>
+        <tr>
+          <th>Collection</th>
+          <th>Added</th>
+          <th>Skipped Existing</th>
+          <th>Failed</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rows.map((row) => `
+          <tr>
+            <td>${escapeHtml(getBackupCollectionLabel(row.collectionName))}</td>
+            <td>${row.added}</td>
+            <td>${row.skipped}</td>
+            <td>${row.failed}</td>
+          </tr>
+        `).join("")}
+      </tbody>
+    </table>
+    <div class="${failedCount ? "restoreWarning" : "restoreSuccess"}">
+      Restore complete. Existing documents were skipped. ${failedCount ? "Some records failed; check the table above." : "No failed records."}
+    </div>
+  `;
+
+  previewArea.insertAdjacentHTML("beforeend", html);
+}
+
+function summarizeRestoreRows(rows) {
+  return rows.reduce((summary, row) => {
+    summary[`${row.collectionName}Added`] = row.added;
+    summary[`${row.collectionName}Skipped`] = row.skipped;
+    summary[`${row.collectionName}Failed`] = row.failed;
+    return summary;
+  }, {});
+}
+
+function getBackupCollectionLabel(collectionName) {
+  if (collectionName === "attendanceRecords") return "Attendance";
+  return collectionName.charAt(0).toUpperCase() + collectionName.slice(1);
+}
+
+async function repairCollectionClassNames(collectionName) {
+  const snap = await getDocs(collection(db, collectionName));
+  const updates = [];
+
+  snap.forEach((docSnap) => {
+    const data = docSnap.data();
+    const className = getDisplayClassName(data.className);
+    const section = data.section || "";
+    const classSection = getClassSectionValue(className, section);
+
+    if (data.className !== className || data.classSection !== classSection) {
+      updates.push(updateDoc(doc(db, collectionName, docSnap.id), {
+        className,
+        classSection
+      }));
+    }
+  });
+
+  await Promise.all(updates);
+  return updates.length;
+}
+
+async function getCollectionBackup(collectionName) {
+  const snap = await getDocs(collection(db, collectionName));
+  const rows = [];
+
+  snap.forEach((docSnap) => {
+    rows.push({
+      id: docSnap.id,
+      data: docSnap.data()
+    });
+  });
+
+  return rows;
+}
+
+function getBackupFileStamp() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  const hour = String(now.getHours()).padStart(2, "0");
+  const minute = String(now.getMinutes()).padStart(2, "0");
+
+  return `${year}-${month}-${day}-${hour}${minute}`;
+}
+
+function normalizeTeacherAssignments(userData) {
+  const assignments = [];
+
+  if (Array.isArray(userData.assignedClasses)) {
+    userData.assignedClasses.forEach((item) => {
+      if (!item) return;
+
+      assignments.push({
+        className: item.className || item.class || item.assignedClass || "",
+        section: item.section || item.assignedSection || ""
+      });
+    });
+  }
+
+  if (Array.isArray(userData.assignedClassSections)) {
+    userData.assignedClassSections.forEach((value) => {
+      const parts = String(value || "").split("|");
+
+      assignments.push({
+        className: parts[0] || "",
+        section: parts[1] || ""
+      });
+    });
+  }
+
+  if (userData.assignedClass || userData.assignedClassName || userData.className) {
+    assignments.push({
+      className: userData.assignedClass || userData.assignedClassName || userData.className || "",
+      section: userData.assignedSection || userData.section || ""
+    });
+  }
+
+  const seen = new Set();
+
+  return assignments
+    .map((item) => ({
+      classNameRaw: String(item.className || "").trim(),
+      sectionRaw: String(item.section || "").trim(),
+      className: normalizeClassName(item.className),
+      section: normalizeText(item.section)
+    }))
+    .filter((item) => {
+      if (!item.className) return false;
+
+      const key = `${item.className}|${item.section}`;
+      if (seen.has(key)) return false;
+
+      seen.add(key);
+      return true;
+    });
+}
+
+function normalizeText(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function normalizeClassName(value) {
+  const text = normalizeText(value);
+  const numberMatch = text.match(/^(?:class\s*)?(\d+)$/);
+
+  if (numberMatch) {
+    return `class ${numberMatch[1]}`;
+  }
+
+  return text.replace(/\s+/g, " ");
+}
+
+function getDisplayClassName(value) {
+  const normalized = normalizeClassName(value);
+  const numberMatch = normalized.match(/^class\s+(\d+)$/);
+
+  if (numberMatch) {
+    return `Class ${numberMatch[1]}`;
+  }
+
+  if (normalized === "kg") return "KG";
+  if (normalized === "play") return "Play";
+  if (normalized === "nursery") return "Nursery";
+
+  return String(value || "").trim();
+}
+
+function getClassNameVariants(className) {
+  const raw = String(className || "").trim();
+  const normalized = normalizeClassName(raw);
+  const numberMatch = normalized.match(/^class\s+(\d+)$/);
+  const variants = [raw];
+
+  if (numberMatch) {
+    variants.push(numberMatch[1], `Class ${numberMatch[1]}`, `class ${numberMatch[1]}`);
+  } else if (raw) {
+    variants.push(normalized);
+  }
+
+  return uniqueValues(variants);
+}
+
+function getClassSectionVariants(className, section) {
+  return getClassNameVariants(className).map((classVariant) =>
+    getClassSectionValue(classVariant, section)
+  );
+}
+
+function canTeacherAccessClassSection(className, section) {
+  if (currentRole !== "teacher") return true;
+  if (!currentTeacherAssignments.length) return false;
+
+  const targetClass = normalizeClassName(className);
+  const targetSection = normalizeText(section);
+
+  return currentTeacherAssignments.some((assignment) =>
+    normalizeClassName(assignment.classNameRaw) === targetClass &&
+    (!assignment.section || assignment.section === targetSection)
+  );
+}
+
+function canTeacherAccessStudent(student) {
+  return canTeacherAccessClassSection(student.className, student.section);
+}
+
+function canTeacherAccessAttendanceRecord(record) {
+  return canTeacherAccessClassSection(record.className, record.section);
+}
+
+function showTeacherAssignmentNotice() {
+  if (currentRole !== "teacher") return;
+
+  if (!currentTeacherAssignments.length) {
+    alert("No class/section assigned for this teacher. Please ask admin to assign a class.");
+  }
+}
+
+function renderTeacherProfileCard() {
+  if (currentRole !== "teacher") {
+    hide("teacherProfileCard");
+    return;
+  }
+
+  show("teacherProfileCard");
+  $("teacherProfileName").innerText = currentDisplayName || "-";
+
+  if (!currentTeacherAssignments.length) {
+    $("teacherAssignmentList").innerHTML = `<span class="assignmentBadge">No class assigned</span>`;
+    return;
+  }
+
+  $("teacherAssignmentList").innerHTML = currentTeacherAssignments
+    .map((assignment) => {
+      const label = assignment.sectionRaw
+        ? `${assignment.classNameRaw} - Section ${assignment.sectionRaw}`
+        : `${assignment.classNameRaw} - All sections`;
+
+      return `<span class="assignmentBadge">${escapeHtml(label)}</span>`;
+    })
+    .join("");
+}
+
+function setActiveNav(page) {
+  document.querySelectorAll("#sidebarMenu p[data-page]").forEach((item) => {
+    item.classList.toggle("active", item.dataset.page === page);
+  });
+}
 
 function showStudentRecordOnly() {
   hide("studentFilterPanel");
@@ -262,26 +1575,396 @@ function loadStudents() {
     unsubscribeStudents = null;
   }
 
+  if (currentRole === "teacher") {
+    loadAssignedTeacherStudents();
+    return;
+  }
+
   const ref = currentRole === "student"
     ? query(collection(db, "students"), where("studentId", "==", currentStudentId))
     : collection(db, "students");
 
   unsubscribeStudents = onSnapshot(ref, (snap) => {
-    allData = [];
-    snap.forEach((item) => allData.push({ id: item.id, ...item.data() }));
-
-    updateDashboardStats(allData);
-    updateClassWiseDashboard(allData);
-    updateStudentProfileAndResult(allData);
-
-    if (currentRole === "student") {
-      showStudentRecordOnly();
-    } else {
-      applyFilters();
-    }
+    const loadedData = [];
+    snap.forEach((item) => loadedData.push({ id: item.id, ...item.data() }));
+    updateStudentViews(loadedData);
   }, (error) => {
+    updateStudentViews([]);
     alert("Student data load failed: " + error.message);
   });
+}
+
+function loadAssignedTeacherStudents() {
+  if (!currentTeacherAssignments.length) {
+    updateStudentViews([]);
+    return;
+  }
+
+  const teacherQueries = currentTeacherAssignments
+    .filter((assignment) => assignment.sectionRaw)
+    .flatMap((assignment) => {
+      const classSectionQueries = getClassSectionVariants(
+        assignment.classNameRaw,
+        assignment.sectionRaw
+      ).map((classSection) => ({
+        mode: "classSection",
+        classSection
+      }));
+
+      const legacyQueries = getClassNameVariants(assignment.classNameRaw).map((className) => ({
+        mode: "legacy",
+        className,
+        section: assignment.sectionRaw
+      }));
+
+      return [...classSectionQueries, ...legacyQueries];
+    });
+
+  const assignmentResults = teacherQueries.map(() => new Map());
+  const unsubscribes = teacherQueries.map((teacherQuery, index) => {
+    const studentsRef = teacherQuery.mode === "classSection"
+      ? query(
+          collection(db, "students"),
+          where("classSection", "==", teacherQuery.classSection)
+        )
+      : query(
+          collection(db, "students"),
+          where("className", "==", teacherQuery.className),
+          where("section", "==", teacherQuery.section)
+        );
+
+    return onSnapshot(studentsRef, (snap) => {
+      assignmentResults[index].clear();
+
+      snap.forEach((item) => {
+        assignmentResults[index].set(item.id, { id: item.id, ...item.data() });
+      });
+
+      const merged = new Map();
+      assignmentResults.forEach((result) => {
+        result.forEach((student, id) => merged.set(id, student));
+      });
+
+      updateStudentViews(Array.from(merged.values()).filter(canTeacherAccessStudent));
+    }, (error) => {
+      console.warn("Assigned student data load failed:", error);
+
+      if (!allData.length) {
+        updateStudentViews([]);
+      }
+    });
+  });
+
+  unsubscribeStudents = () => {
+    unsubscribes.forEach((unsubscribe) => unsubscribe());
+  };
+}
+
+function getClassSectionValue(className, section) {
+  return `${String(className || "").trim()}|${String(section || "").trim()}`;
+}
+
+function chunkArray(items, size) {
+  const chunks = [];
+
+  for (let index = 0; index < items.length; index += size) {
+    chunks.push(items.slice(index, index + size));
+  }
+
+  return chunks;
+}
+
+function updateStudentViews(data) {
+  allData = data;
+
+  backfillStudentKeysIfNeeded(allData);
+  backfillAttendanceRecordKeysIfNeeded();
+  renderTeacherProfileCard();
+  updateDashboardStats(allData);
+  updateClassWiseDashboard(allData);
+  updateStudentProfileAndResult(allData);
+
+  if (currentRole === "student") {
+    showStudentRecordOnly();
+  } else {
+    applyFilters();
+  }
+}
+
+function backfillStudentKeysIfNeeded(data) {
+  if (currentRole !== "admin" || studentKeyBackfillDone) return;
+
+  studentKeyBackfillDone = true;
+
+  const updates = data
+    .filter((student) => {
+      const expectedClassName = getDisplayClassName(student.className);
+      const expectedClassSection = getClassSectionValue(expectedClassName, student.section);
+      const expectedRollKey = normalizeRoll(student.roll);
+
+      return student.className !== expectedClassName ||
+        student.classSection !== expectedClassSection ||
+        student.rollKey !== expectedRollKey;
+    })
+    .map((student) => updateDoc(doc(db, "students", student.id), {
+      className: getDisplayClassName(student.className),
+      classSection: getClassSectionValue(getDisplayClassName(student.className), student.section),
+      rollKey: normalizeRoll(student.roll)
+    }));
+
+  if (!updates.length) return;
+
+  Promise.all(updates)
+    .then(() => console.log(`Backfilled ${updates.length} student records`))
+    .catch((error) => console.warn("Student key backfill failed:", error));
+}
+
+async function backfillAttendanceRecordKeysIfNeeded() {
+  if (currentRole !== "admin" || attendanceRecordBackfillDone) return;
+
+  attendanceRecordBackfillDone = true;
+
+  try {
+    const snap = await getDocs(collection(db, "attendanceRecords"));
+    const updates = [];
+
+    snap.forEach((docSnap) => {
+      const record = docSnap.data();
+      const expectedClassName = getDisplayClassName(record.className);
+      const expectedClassSection = getClassSectionValue(expectedClassName, record.section);
+
+      if (record.className !== expectedClassName || record.classSection !== expectedClassSection) {
+        updates.push(updateDoc(doc(db, "attendanceRecords", docSnap.id), {
+          className: expectedClassName,
+          classSection: expectedClassSection
+        }));
+      }
+    });
+
+    if (updates.length) {
+      await Promise.all(updates);
+      console.log(`Backfilled ${updates.length} attendance records`);
+    }
+  } catch (error) {
+    console.warn("Attendance record backfill failed:", error);
+  }
+}
+
+window.loadTeachersForAssignment = async function () {
+  if (currentRole !== "admin") {
+    alert("Only admin can assign teachers");
+    return;
+  }
+
+  const table = $("teachersTable");
+  table.innerHTML = `<tr><td colspan="4">Loading teachers...</td></tr>`;
+
+  try {
+    const snap = await getDocs(
+      query(collection(db, "users"), where("role", "==", "teacher"))
+    );
+
+    const teachers = [];
+    snap.forEach((docSnap) => {
+      teachers.push({ id: docSnap.id, ...docSnap.data() });
+    });
+
+    renderTeachersAssignmentTable(teachers);
+  } catch (error) {
+    alert("Teacher list load failed: " + error.message);
+    table.innerHTML = `<tr><td colspan="4">Teacher list load failed</td></tr>`;
+  }
+};
+
+window.addTeacherProfile = async function () {
+  if (currentRole !== "admin") {
+    alert("Only admin can add teacher profiles");
+    return;
+  }
+
+  const uid = $("newTeacherUid").value.trim();
+  const name = $("newTeacherName").value.trim();
+  const email = $("newTeacherEmail").value.trim();
+
+  if (!uid || !name || !email) {
+    alert("Enter teacher UID, name, and email");
+    return;
+  }
+
+  try {
+    await setDoc(doc(db, "users", uid), {
+      name,
+      email,
+      role: "teacher",
+      assignedClassSections: []
+    }, { merge: true });
+
+    await addActivityLog("Teacher Profile Added", { teacherUid: uid, name, email });
+
+    $("newTeacherUid").value = "";
+    $("newTeacherName").value = "";
+    $("newTeacherEmail").value = "";
+
+    alert("Teacher profile added. Make sure this UID exists in Firebase Authentication.");
+    loadTeachersForAssignment();
+  } catch (error) {
+    alert("Teacher profile add failed: " + error.message);
+  }
+};
+
+function renderTeachersAssignmentTable(teachers) {
+  const table = $("teachersTable");
+  table.innerHTML = "";
+
+  if (!teachers.length) {
+    table.innerHTML = `<tr><td colspan="4">No teacher users found</td></tr>`;
+    return;
+  }
+
+  teachers
+    .sort((a, b) => String(a.name || a.email || "").localeCompare(String(b.name || b.email || "")))
+    .forEach((teacher) => {
+      const row = document.createElement("tr");
+      const assignmentText = getTeacherAssignmentText(teacher);
+
+      row.innerHTML = `
+        <td>${escapeHtml(teacher.name || "-")}</td>
+        <td>${escapeHtml(teacher.email || teacher.userEmail || "-")}</td>
+        <td>
+          <div class="assignmentEditor">
+            <select id="teacherClass-${teacher.id}">
+              ${getClassOptionsHtml()}
+            </select>
+            <select id="teacherSection-${teacher.id}">
+              ${getSectionOptionsHtml()}
+            </select>
+            <button class="actionBtn" onclick="addTeacherAssignment('${teacher.id}')">Add</button>
+          </div>
+          <textarea
+            class="assignmentInput"
+            id="teacherAssign-${teacher.id}"
+            placeholder="Class 1|A&#10;Class 2|B"
+            readonly>${escapeHtml(assignmentText)}</textarea>
+        </td>
+        <td>
+          <button class="actionBtn" onclick="saveTeacherAssignment('${teacher.id}')">Save Assignment</button>
+          <button class="actionBtn deleteBtn" onclick="clearTeacherAssignment('${teacher.id}')">Clear</button>
+        </td>
+      `;
+
+      table.appendChild(row);
+    });
+}
+
+function getClassOptionsHtml() {
+  return classOptions
+    .map((className) => `<option value="${escapeHtml(className)}">${escapeHtml(className)}</option>`)
+    .join("");
+}
+
+function getSectionOptionsHtml() {
+  return sectionOptions
+    .map((section) => `<option value="${escapeHtml(section)}">${escapeHtml(section)}</option>`)
+    .join("");
+}
+
+function getTeacherAssignmentText(teacher) {
+  const assignments = normalizeTeacherAssignments(teacher);
+
+  return assignments
+    .map((assignment) =>
+      assignment.sectionRaw
+        ? `${assignment.classNameRaw}|${assignment.sectionRaw}`
+        : assignment.classNameRaw
+    )
+    .join("\n");
+}
+
+window.saveTeacherAssignment = async function (teacherId) {
+  if (currentRole !== "admin") {
+    alert("Only admin can assign teachers");
+    return;
+  }
+
+  const input = $(`teacherAssign-${teacherId}`);
+  const assignments = parseTeacherAssignmentInput(input.value);
+
+  try {
+    await updateDoc(doc(db, "users", teacherId), {
+      assignedClassSections: buildTeacherAssignmentValues(assignments)
+    });
+
+    await addActivityLog("Teacher Assignment Saved", {
+      teacherId,
+      assignments: assignments.map((item) => `${item.className}|${item.section}`)
+    });
+
+    alert("Teacher assignment saved successfully");
+  } catch (error) {
+    alert("Teacher assignment save failed: " + error.message);
+  }
+};
+
+function buildTeacherAssignmentValues(assignments) {
+  const values = [];
+
+  assignments.forEach((item) => {
+    if (!item.className) return;
+
+    if (!item.section) {
+      values.push(item.className);
+      return;
+    }
+
+    getClassNameVariants(item.className).forEach((className) => {
+      values.push(`${className}|${item.section}`);
+    });
+  });
+
+  return uniqueValues(values);
+}
+
+window.addTeacherAssignment = function (teacherId) {
+  const className = $(`teacherClass-${teacherId}`).value;
+  const section = $(`teacherSection-${teacherId}`).value;
+  const input = $(`teacherAssign-${teacherId}`);
+  const assignments = parseTeacherAssignmentInput(input.value);
+  const newItem = { className, section };
+  const exists = assignments.some((item) =>
+    normalizeClassName(item.className) === normalizeClassName(newItem.className) &&
+    normalizeText(item.section) === normalizeText(newItem.section)
+  );
+
+  if (!exists) {
+    assignments.push(newItem);
+  }
+
+  input.value = assignments
+    .map((item) => `${item.className}|${item.section}`)
+    .join("\n");
+};
+
+window.clearTeacherAssignment = function (teacherId) {
+  if (!confirm("Clear all assignments for this teacher?")) return;
+
+  $(`teacherAssign-${teacherId}`).value = "";
+};
+
+function parseTeacherAssignmentInput(value) {
+  return String(value || "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const separator = line.includes("|") ? "|" : ",";
+      const parts = line.split(separator);
+
+      return {
+        className: String(parts[0] || "").trim(),
+        section: String(parts[1] || "").trim()
+      };
+    })
+    .filter((item) => item.className);
 }
 
 function updateDashboardStats(data) {
@@ -307,7 +1990,7 @@ function updateClassWiseDashboard(data) {
   const classMap = {};
 
   data.forEach((student) => {
-    const className = student.className || "Unassigned";
+    const className = getDisplayClassName(student.className) || "Unassigned";
 
     if (!classMap[className]) {
       classMap[className] = {
@@ -376,14 +2059,20 @@ function updateStudentProfileAndResult(data) {
   }
 
   $("studentProfileName").innerText = student.name || "-";
-  $("studentProfileClass").innerText = student.className || "-";
+  $("studentProfileClass").innerText = getDisplayClassName(student.className) || "-";
   $("studentProfileSection").innerText = student.section || "-";
   $("studentProfileRoll").innerText = student.roll || "-";
   $("studentProfileEmail").innerText = student.studentEmail || "-";
+  $("studentProfileFather").innerText = student.fatherName || "-";
+  $("studentProfileMother").innerText = student.motherName || "-";
+  $("studentProfileGuardianPhone").innerText = student.guardianPhone || "-";
+  $("studentProfileEmergency").innerText = student.emergencyContact || "-";
+  $("studentProfileBloodGroup").innerText = student.bloodGroup || "-";
+  $("studentProfileAddress").innerText = student.address || "-";
   $("studentProfileAttendance").innerText = student.attendance || "-";
   $("studentProfileAttendancePercent").innerText = (student.attendancePercent || 0) + "%";
 
-  renderStudentResultCard(student.subjects || {});
+  renderStudentResultCard(getStudentTermSubjects(student, currentResultTerm));
 }
 
 function renderStudentResultCard(subjects) {
@@ -424,6 +2113,58 @@ function renderStudentResultCard(subjects) {
   $("resultStatus").innerText = Number(percentage) >= 33 ? "Passed" : "Failed";
 }
 
+function getStudentTermSubjects(student, termKey) {
+  if (termKey === "yearlyFinal") {
+    return calculateYearlyFinalSubjects(student);
+  }
+
+  const termResult = student?.termResults?.[termKey];
+  return termResult?.subjects || student?.subjects || createEmptySubjects();
+}
+
+function getCurrentTermLabel() {
+  return termOptions.find((term) => term.key === currentResultTerm)?.label || "Yearly Final";
+}
+
+function calculateYearlyFinalSubjects(student) {
+  const yearlySubjects = {};
+  const firstTerm = student?.termResults?.firstTerm?.subjects || {};
+  const midTerm = student?.termResults?.midTerm?.subjects || {};
+  const finalTerm = student?.termResults?.finalTerm?.subjects || {};
+
+  subjectsList.forEach((subject) => {
+    const firstTotal = getSubjectTotal(firstTerm[subject.key]);
+    const midTotal = getSubjectTotal(midTerm[subject.key]);
+    const finalTotal = getSubjectTotal(finalTerm[subject.key]);
+
+    yearlySubjects[subject.key] = {
+      classMark: Number((firstTotal * 0.2).toFixed(2)),
+      quizMark: Number((midTotal * 0.3).toFixed(2)),
+      examMark: Number((finalTotal * 0.5).toFixed(2))
+    };
+  });
+
+  return yearlySubjects;
+}
+
+function getSubjectTotal(marks) {
+  return Number(marks?.classMark || 0) +
+    Number(marks?.quizMark || 0) +
+    Number(marks?.examMark || 0);
+}
+
+function setupResultTermSelect() {
+  const select = $("resultTermSelect");
+  if (!select) return;
+
+  select.innerHTML = termOptions
+    .map((term) =>
+      `<option value="${escapeHtml(term.key)}">${escapeHtml(term.label)}</option>`
+    )
+    .join("");
+  select.value = currentResultTerm;
+}
+
 function resetResultSummary() {
   $("resultTotalMarks").innerText = "0";
   $("resultPercentage").innerText = "0%";
@@ -461,28 +2202,49 @@ window.addStudent = async function () {
   const section = $("section").value.trim();
   const roll = $("roll").value.trim();
   const studentEmail = $("studentEmail").value.trim();
-  const marks = Number($("marks").value || 0);
-  const attendance = $("attendance").value;
-  const attendancePercent = Number($("attendancePercent").value || 0);
+  const guardianInfo = getGuardianInfoFromForm();
 
   if (!name || !className || !section || !roll || !studentEmail) {
     alert("Fill all required fields");
     return;
   }
 
+  if (currentRole === "teacher" && !canTeacherAccessClassSection(className, section)) {
+    alert("You can add students only to your assigned class/section");
+    return;
+  }
+
   try {
-    await addDoc(collection(db, "students"), {
+    const duplicateRoll = await studentRollExists(className, section, roll);
+
+    if (duplicateRoll) {
+      alert("This roll already exists in the selected class and section");
+      return;
+    }
+
+    const studentRef = await addDoc(collection(db, "students"), {
       name,
       className,
       section,
+      classSection: getClassSectionValue(className, section),
       roll,
+      rollKey: normalizeRoll(roll),
       studentEmail,
       studentId: studentEmail,
-      marks,
-      attendance,
-      attendancePercent,
+      ...guardianInfo,
+      marks: 0,
+      attendance: "Present",
+      attendancePercent: 0,
       subjects: createEmptySubjects(),
       createdAt: new Date().toISOString()
+    });
+
+    await addActivityLog("Student Added", {
+      studentId: studentRef.id,
+      name,
+      className,
+      section,
+      roll
     });
 
     clearStudentForm();
@@ -506,6 +2268,17 @@ function createEmptySubjects() {
   return subjects;
 }
 
+function getGuardianInfoFromForm() {
+  return {
+    fatherName: $("fatherName")?.value.trim() || "",
+    motherName: $("motherName")?.value.trim() || "",
+    guardianPhone: $("guardianPhone")?.value.trim() || "",
+    emergencyContact: $("emergencyContact")?.value.trim() || "",
+    bloodGroup: $("bloodGroup")?.value.trim() || "",
+    address: $("address")?.value.trim() || ""
+  };
+}
+
 function clearStudentForm() {
   [
     "name",
@@ -513,14 +2286,16 @@ function clearStudentForm() {
     "section",
     "roll",
     "studentEmail",
-    "marks",
-    "attendancePercent"
+    "fatherName",
+    "motherName",
+    "guardianPhone",
+    "emergencyContact",
+    "bloodGroup",
+    "address"
   ].forEach((id) => {
     const element = $(id);
     if (element) element.value = "";
   });
-
-  $("attendance").value = "Present";
 }
 
 window.applyFilters = function () {
@@ -531,10 +2306,10 @@ window.applyFilters = function () {
   filteredData = allData.filter((student) => {
     const nameMatch = (student.name || "").toLowerCase().includes(search);
     const classMatch = classFilter
-      ? (student.className || "").toLowerCase().includes(classFilter)
+      ? normalizeClassName(student.className) === normalizeClassName(classFilter)
       : true;
     const sectionMatch = sectionFilter
-      ? (student.section || "").toLowerCase().includes(sectionFilter)
+      ? normalizeText(student.section) === normalizeText(sectionFilter)
       : true;
 
     return nameMatch && classMatch && sectionMatch;
@@ -550,12 +2325,15 @@ function renderStudents(data) {
   table.innerHTML = "";
   $("emptyStudents").style.display = data.length ? "none" : "block";
 
-  data.forEach((student) => {
+  $("studentsListCount").innerText = `Total Students: ${data.length}`;
+
+  data.forEach((student, index) => {
     const row = document.createElement("tr");
 
     row.innerHTML = `
+      <td>${index + 1}</td>
       <td>${escapeHtml(student.name || "")}</td>
-      <td>${escapeHtml(student.className || "")}</td>
+      <td>${escapeHtml(getDisplayClassName(student.className))}</td>
       <td>${escapeHtml(student.section || "")}</td>
       <td>${escapeHtml(student.roll || "")}</td>
       <td>${escapeHtml(student.studentEmail || "")}</td>
@@ -625,25 +2403,56 @@ window.openMarksPanel = function (id) {
   renderStudentModal(student, true);
 
   $("studentModalTitle").innerText = "Update Student Marks";
-  show("saveMarksBtn", "inline-block");
+  updateSaveMarksButton();
   show("studentModal", "flex");
 };
 
 function renderStudentModal(student, editable) {
+  currentModalEditable = editable;
+
   $("modalProfileName").innerText = student.name || "-";
-  $("modalProfileClass").innerText = student.className || "-";
+  $("modalProfileClass").innerText = getDisplayClassName(student.className) || "-";
   $("modalProfileSection").innerText = student.section || "-";
   $("modalProfileRoll").innerText = student.roll || "-";
   $("modalProfileEmail").innerText = student.studentEmail || "-";
+  $("modalProfileFather").innerText = student.fatherName || "-";
+  $("modalProfileMother").innerText = student.motherName || "-";
+  $("modalProfileGuardianPhone").innerText = student.guardianPhone || "-";
+  $("modalProfileEmergency").innerText = student.emergencyContact || "-";
+  $("modalProfileBloodGroup").innerText = student.bloodGroup || "-";
+  $("modalProfileAddress").innerText = student.address || "-";
   $("modalProfileAttendance").innerText = student.attendance || "-";
   $("modalProfileAttendancePercent").innerText = (student.attendancePercent || 0) + "%";
 
-  renderModalMarksTable(student.subjects || {}, editable);
+  setupResultTermSelect();
+  renderModalMarksTable(
+    getStudentTermSubjects(student, currentResultTerm),
+    editable && currentResultTerm !== "yearlyFinal"
+  );
+  updateSaveMarksButton();
+}
+
+window.changeResultTerm = function () {
+  const select = $("resultTermSelect");
+  if (!select || !selectedStudentForMarks) return;
+
+  currentResultTerm = select.value || "finalTerm";
+  renderStudentModal(selectedStudentForMarks, currentModalEditable);
+};
+
+function updateSaveMarksButton() {
+  if (!currentModalEditable || currentResultTerm === "yearlyFinal") {
+    hide("saveMarksBtn");
+    return;
+  }
+
+  show("saveMarksBtn", "inline-block");
 }
 
 function renderModalMarksTable(subjects, editable) {
   const table = $("modalMarksTable");
   table.innerHTML = "";
+  const markLabels = getResultMarkLabels();
 
   let grandTotal = 0;
   let subjectCount = 0;
@@ -666,19 +2475,19 @@ function renderModalMarksTable(subjects, editable) {
       <td>
         <input class="marksInput subjectMark" ${readonly}
           data-subject="${subject.key}" data-type="classMark"
-          type="number" min="0" value="${classMark}"
+          type="number" min="0" title="${escapeHtml(markLabels.first)}" value="${classMark}"
           oninput="refreshModalResult()">
       </td>
       <td>
         <input class="marksInput subjectMark" ${readonly}
           data-subject="${subject.key}" data-type="quizMark"
-          type="number" min="0" value="${quizMark}"
+          type="number" min="0" title="${escapeHtml(markLabels.second)}" value="${quizMark}"
           oninput="refreshModalResult()">
       </td>
       <td>
         <input class="marksInput subjectMark" ${readonly}
           data-subject="${subject.key}" data-type="examMark"
-          type="number" min="0" value="${examMark}"
+          type="number" min="0" title="${escapeHtml(markLabels.third)}" value="${examMark}"
           oninput="refreshModalResult()">
       </td>
       <td class="subjectTotal">${total}</td>
@@ -720,6 +2529,22 @@ function updateModalSummary(grandTotal, subjectCount) {
   $("modalRecommendation").innerText = getRecommendation(Number(percentage));
 }
 
+function getResultMarkLabels() {
+  if (currentResultTerm === "yearlyFinal") {
+    return {
+      first: "First Term 20%",
+      second: "Mid Term 30%",
+      third: "Final Term 50%"
+    };
+  }
+
+  return {
+    first: "Class Mark",
+    second: "Quiz Mark",
+    third: "Exam Mark"
+  };
+}
+
 window.updateStudentMarks = async function () {
   if (currentRole === "student") {
     alert("Students can view marks only");
@@ -731,6 +2556,11 @@ window.updateStudentMarks = async function () {
     return;
   }
 
+  if (currentResultTerm === "yearlyFinal") {
+    alert("Yearly Final is calculated automatically from First Term, Mid Term, and Final Term");
+    return;
+  }
+
   const subjects = createEmptySubjects();
 
   document.querySelectorAll("#modalMarksTable .subjectMark").forEach((input) => {
@@ -739,13 +2569,32 @@ window.updateStudentMarks = async function () {
     subjects[subject][type] = Number(input.value || 0);
   });
 
+  const termResults = {
+    ...(selectedStudentForMarks.termResults || {}),
+    [currentResultTerm]: {
+      termName: getCurrentTermLabel(),
+      subjects,
+      totalMarks: calculateOverallMarks(subjects),
+      updatedAt: new Date().toISOString()
+    }
+  };
+
   try {
     await updateDoc(doc(db, "students", selectedStudentForMarks.id), {
+      termResults,
+      activeTerm: currentResultTerm,
       subjects,
       marks: calculateOverallMarks(subjects)
     });
 
-    alert("Marks updated successfully");
+    await addActivityLog("Marks Updated", {
+      studentId: selectedStudentForMarks.id,
+      studentName: selectedStudentForMarks.name || "-",
+      term: getCurrentTermLabel(),
+      totalMarks: calculateOverallMarks(subjects)
+    });
+
+    alert(getCurrentTermLabel() + " marks updated successfully");
     closeStudentModal();
   } catch (error) {
     alert("Update failed: " + error.message);
@@ -782,7 +2631,15 @@ window.deleteStudent = async function (id) {
   if (!confirm("Are you sure?")) return;
 
   try {
+    const student = allData.find((item) => item.id === id);
     await deleteDoc(doc(db, "students", id));
+    await addActivityLog("Student Deleted", {
+      studentId: id,
+      studentName: student?.name || "-",
+      className: student?.className || "-",
+      section: student?.section || "-",
+      roll: student?.roll || "-"
+    });
   } catch (error) {
     alert("Delete failed: " + error.message);
   }
@@ -798,6 +2655,11 @@ window.editStudent = async function (id) {
 
   if (!student) {
     alert("Student not found");
+    return;
+  }
+
+  if (currentRole === "admin") {
+    await editStudentInfo(student);
     return;
   }
 
@@ -828,65 +2690,224 @@ window.editStudent = async function (id) {
       attendance: attendanceValue,
       attendancePercent: Number(newAttendancePercent || 0)
     });
+    await addActivityLog("Student Attendance Edited", {
+      studentId: id,
+      studentName: student.name || "-",
+      attendance: attendanceValue,
+      attendancePercent: Number(newAttendancePercent || 0)
+    });
   } catch (error) {
     alert("Update failed: " + error.message);
   }
 };
 
-window.loadAttendanceSheet = function () {
+window.loadAttendanceSheet = async function () {
   if (currentRole !== "admin" && currentRole !== "teacher") {
     alert("You do not have permission");
     return;
   }
 
-  const className = $("attendanceClass").value.trim().toLowerCase();
-  const section = $("attendanceSection").value.trim().toLowerCase();
+  const date = $("attendanceDate").value;
+  const className = $("attendanceClass").value.trim();
+  const section = $("attendanceSection").value.trim();
 
-  if (!className || !section) {
-    alert("Enter class and section");
+  if (!date || !className || !section) {
+    alert("Select date, class, and section");
     return;
   }
 
-  attendanceStudents = allData
-    .filter((student) =>
-      (student.className || "").toLowerCase() === className &&
-      (student.section || "").toLowerCase() === section
-    )
-    .sort((a, b) => Number(a.roll || 0) - Number(b.roll || 0));
+  if (currentRole === "teacher" && !canTeacherAccessClassSection(className, section)) {
+    alert("You can take attendance only for your assigned class/section");
+    return;
+  }
 
-  renderAttendanceSheet();
+  try {
+    attendanceStudents = await loadStudentsForClassSection(className, section);
+    let savedRecords = {};
+
+    try {
+      savedRecords = await getAttendanceRecordsForDate(date, className, section);
+    } catch (error) {
+      console.warn("Saved attendance records load failed:", error);
+    }
+
+    renderAttendanceSheet(savedRecords);
+  } catch (error) {
+    alert("Attendance sheet load failed: " + error.message);
+  }
 };
 
-function renderAttendanceSheet() {
+async function editStudentInfo(student) {
+  const name = prompt("Student Name", student.name || "");
+  if (name === null) return;
+
+  const studentEmail = prompt("Student Email", student.studentEmail || "");
+  if (studentEmail === null) return;
+
+  const fatherName = prompt("Father Name", student.fatherName || "");
+  if (fatherName === null) return;
+
+  const motherName = prompt("Mother Name", student.motherName || "");
+  if (motherName === null) return;
+
+  const guardianPhone = prompt("Guardian Phone", student.guardianPhone || "");
+  if (guardianPhone === null) return;
+
+  const emergencyContact = prompt("Emergency Contact", student.emergencyContact || "");
+  if (emergencyContact === null) return;
+
+  const bloodGroup = prompt("Blood Group", student.bloodGroup || "");
+  if (bloodGroup === null) return;
+
+  const address = prompt("Address", student.address || "");
+  if (address === null) return;
+
+  try {
+    await updateDoc(doc(db, "students", student.id), {
+      name: name.trim(),
+      studentEmail: studentEmail.trim(),
+      studentId: studentEmail.trim(),
+      fatherName: fatherName.trim(),
+      motherName: motherName.trim(),
+      guardianPhone: guardianPhone.trim(),
+      emergencyContact: emergencyContact.trim(),
+      bloodGroup: bloodGroup.trim(),
+      address: address.trim()
+    });
+
+    await addActivityLog("Student Info Updated", {
+      studentId: student.id,
+      oldName: student.name || "-",
+      newName: name.trim()
+    });
+
+    alert("Student info updated successfully");
+  } catch (error) {
+    alert("Update failed: " + error.message);
+  }
+}
+
+async function loadStudentsForClassSection(className, section) {
+  const localStudents = allData
+    .filter((student) =>
+      normalizeClassName(student.className) === normalizeClassName(className) &&
+      normalizeText(student.section) === normalizeText(section)
+    );
+
+  if (localStudents.length) {
+    return sortStudentsByRoll(localStudents);
+  }
+
+  const students = [];
+
+  await Promise.all(getClassSectionVariants(className, section).map(async (classSection) => {
+    try {
+      const snap = await getDocs(
+        query(collection(db, "students"), where("classSection", "==", classSection))
+      );
+
+      snap.forEach((docSnap) => {
+        students.push({ id: docSnap.id, ...docSnap.data() });
+      });
+    } catch (error) {
+      console.warn("classSection student query failed:", error);
+    }
+  }));
+
+  await Promise.all(getClassNameVariants(className).map(async (classVariant) => {
+    try {
+      const fallbackSnap = await getDocs(
+        query(
+          collection(db, "students"),
+          where("className", "==", classVariant),
+          where("section", "==", section)
+        )
+      );
+
+      fallbackSnap.forEach((docSnap) => {
+        students.push({ id: docSnap.id, ...docSnap.data() });
+      });
+    } catch (error) {
+      console.warn("legacy class/section student query failed:", error);
+    }
+  }));
+
+  const merged = new Map();
+  students
+    .filter(canTeacherAccessStudent)
+    .forEach((student) => merged.set(student.id, student));
+
+  return sortStudentsByRoll(Array.from(merged.values()));
+}
+
+function sortStudentsByRoll(students) {
+  return students.sort((a, b) => Number(a.roll || 0) - Number(b.roll || 0));
+}
+
+async function getAttendanceRecordsForDate(date, className, section) {
+  const snap = await getDocs(
+    query(
+      collection(db, "attendanceRecords"),
+      where("date", "==", date),
+      where("classSection", "==", getClassSectionValue(className, section))
+    )
+  );
+  const records = {};
+
+  snap.forEach((docSnap) => {
+    const record = docSnap.data();
+    records[record.studentDocId] = record.status;
+  });
+
+  return records;
+}
+
+function clearAttendanceSheet() {
+  attendanceStudents = [];
+  hide("attendanceSheetArea");
+
+  const table = $("attendanceTable");
+  if (table) table.innerHTML = "";
+}
+
+function renderAttendanceSheet(savedRecords = {}) {
   const table = $("attendanceTable");
   table.innerHTML = "";
 
   show("attendanceSheetArea");
 
+  const date = $("attendanceDate").value;
   const className = $("attendanceClass").value.trim();
   const section = $("attendanceSection").value.trim();
 
   $("attendanceSheetTitle").innerText =
-    `Attendance Sheet - Class ${className}, Section ${section}`;
+    `Attendance Sheet - ${date} - ${className}, Section ${section}`;
 
   if (!attendanceStudents.length) {
-    table.innerHTML = `<tr><td colspan="5">No students found for this class and section</td></tr>`;
+    table.innerHTML = `
+      <tr>
+        <td colspan="5">
+          No students found for this class and section. If students exist, admin should save this teacher assignment again.
+        </td>
+      </tr>
+    `;
     return;
   }
 
   attendanceStudents.forEach((student) => {
     const row = document.createElement("tr");
+    const selectedStatus = savedRecords[student.id] || "Present";
 
     row.innerHTML = `
       <td>${escapeHtml(student.roll || "")}</td>
       <td>${escapeHtml(student.name || "")}</td>
-      <td>${escapeHtml(student.className || "")}</td>
+      <td>${escapeHtml(getDisplayClassName(student.className))}</td>
       <td>${escapeHtml(student.section || "")}</td>
       <td>
         <select class="attendanceStatus" data-id="${student.id}">
-          <option value="Present" selected>Present</option>
-          <option value="Absent">Absent</option>
-          <option value="Late">Late</option>
+          <option value="Present" ${selectedStatus === "Present" ? "selected" : ""}>Present</option>
+          <option value="Absent" ${selectedStatus === "Absent" ? "selected" : ""}>Absent</option>
+          <option value="Late" ${selectedStatus === "Late" ? "selected" : ""}>Late</option>
         </select>
       </td>
     `;
@@ -906,18 +2927,494 @@ window.saveAttendance = async function () {
     return;
   }
 
+  const date = $("attendanceDate").value;
+  const month = date.slice(0, 7);
+  const currentUser = auth.currentUser;
+
+  if (!date) {
+    alert("Select attendance date");
+    return;
+  }
+
   const updates = Array.from(document.querySelectorAll(".attendanceStatus"))
-    .map((select) => updateDoc(doc(db, "students", select.dataset.id), {
-      attendance: select.value
-    }));
+    .map((select) => {
+      const student = attendanceStudents.find((item) => item.id === select.dataset.id);
+
+      if (!student) return Promise.resolve();
+
+      const recordId = `${date}_${student.id}`;
+
+      return Promise.all([
+        updateDoc(doc(db, "students", student.id), {
+          attendance: select.value,
+          attendanceDate: date
+        }),
+        setDoc(doc(db, "attendanceRecords", recordId), {
+          date,
+          month,
+          className: student.className || "",
+          section: student.section || "",
+          classSection: getClassSectionValue(student.className, student.section),
+          studentId: student.studentId || student.studentEmail || "",
+          studentDocId: student.id,
+          studentName: student.name || "",
+          roll: student.roll || "",
+          status: select.value,
+          markedBy: currentUser ? currentUser.uid : "",
+          markedAt: serverTimestamp()
+        }, { merge: true })
+      ]);
+    });
 
   try {
     await Promise.all(updates);
+    await updateMonthlyAttendancePercentForLoadedStudents(month);
+    await addActivityLog("Attendance Saved", {
+      date,
+      className: $("attendanceClass").value.trim(),
+      section: $("attendanceSection").value.trim(),
+      students: attendanceStudents.length
+    });
     alert("Attendance saved successfully");
   } catch (error) {
     alert("Attendance save failed: " + error.message);
   }
 };
+
+async function updateMonthlyAttendancePercentForLoadedStudents(month) {
+  if (!attendanceStudents.length) return;
+
+  const firstStudent = attendanceStudents[0];
+  const classSection = getClassSectionValue(firstStudent.className, firstStudent.section);
+  const snap = await getDocs(
+    query(
+      collection(db, "attendanceRecords"),
+      where("month", "==", month),
+      where("classSection", "==", classSection)
+    )
+  );
+
+  const summary = {};
+
+  snap.forEach((docSnap) => {
+    const record = docSnap.data();
+    const id = record.studentDocId;
+
+    if (!summary[id]) {
+      summary[id] = { total: 0, present: 0 };
+    }
+
+    summary[id].total++;
+    if (record.status === "Present") {
+      summary[id].present++;
+    }
+  });
+
+  await Promise.all(attendanceStudents.map((student) => {
+    const item = summary[student.id];
+    const attendancePercent = item && item.total
+      ? Number(((item.present / item.total) * 100).toFixed(2))
+      : 0;
+
+    return updateDoc(doc(db, "students", student.id), {
+      attendancePercent
+    });
+  }));
+}
+
+async function studentRollExists(className, section, roll) {
+  const localDuplicate = allData.some((student) =>
+    getClassSectionValue(student.className, student.section) === getClassSectionValue(className, section) &&
+    normalizeRoll(student.roll) === normalizeRoll(roll)
+  );
+
+  if (localDuplicate) return true;
+
+  const snap = await getDocs(
+    query(
+      collection(db, "students"),
+      where("classSection", "==", getClassSectionValue(className, section)),
+      where("rollKey", "==", normalizeRoll(roll))
+    )
+  );
+
+  return !snap.empty;
+}
+
+function normalizeRoll(roll) {
+  const trimmed = String(roll || "").trim();
+  const numeric = Number(trimmed);
+
+  return Number.isFinite(numeric) && trimmed !== ""
+    ? String(numeric)
+    : trimmed.toLowerCase();
+}
+
+window.loadMonthlyReport = async function () {
+  if (currentRole !== "admin" && currentRole !== "teacher") {
+    alert("You do not have permission");
+    return;
+  }
+
+  const month = $("reportMonth").value;
+  const className = $("reportClass").value.trim();
+  const section = $("reportSection").value.trim();
+
+  if (!month) {
+    alert("Select month");
+    return;
+  }
+
+  try {
+    monthlyAttendanceData = currentRole === "teacher"
+      ? await getTeacherMonthlyAttendanceRecords(month)
+      : await getMonthlyAttendanceRecords(month);
+
+    if (className) {
+      monthlyAttendanceData = monthlyAttendanceData.filter((item) =>
+        normalizeClassName(item.className) === normalizeClassName(className)
+      );
+    }
+
+    if (section) {
+      monthlyAttendanceData = monthlyAttendanceData.filter((item) =>
+        normalizeText(item.section) === normalizeText(section)
+      );
+    }
+
+    updateMonthlyReportSubtitle();
+    renderMonthlyReport(monthlyAttendanceData);
+  } catch (error) {
+    monthlyAttendanceData = [];
+    updateMonthlyReportSubtitle();
+    renderMonthlyReport(monthlyAttendanceData);
+    console.warn("Monthly report load failed:", error);
+  }
+};
+
+async function getMonthlyAttendanceRecords(month) {
+  const snap = await getDocs(
+    query(collection(db, "attendanceRecords"), where("month", "==", month))
+  );
+
+  const records = [];
+  snap.forEach((docSnap) => records.push({ id: docSnap.id, ...docSnap.data() }));
+
+  return records;
+}
+
+async function getTeacherMonthlyAttendanceRecords(month) {
+  if (!currentTeacherAssignments.length) return [];
+
+  const resultMap = new Map();
+  const assignedClassSections = currentTeacherAssignments
+    .filter((assignment) => assignment.sectionRaw)
+    .flatMap((assignment) =>
+      getClassSectionVariants(assignment.classNameRaw, assignment.sectionRaw)
+    );
+
+  await Promise.all(uniqueValues(assignedClassSections).map(async (classSection) => {
+    const recordsRef = query(
+      collection(db, "attendanceRecords"),
+      where("month", "==", month),
+      where("classSection", "==", classSection)
+    );
+
+    const snap = await getDocs(recordsRef);
+
+    snap.forEach((docSnap) => {
+      const record = { id: docSnap.id, ...docSnap.data() };
+
+      if (canTeacherAccessAttendanceRecord(record)) {
+        resultMap.set(record.id, record);
+      }
+    });
+  }));
+
+  return Array.from(resultMap.values());
+}
+
+function updateMonthlyReportSubtitle() {
+  const month = $("reportMonth")?.value || getTodayParts().month;
+  const className = $("reportClass")?.value.trim() || "All classes";
+  const section = $("reportSection")?.value.trim() || "All sections";
+  const count = monthlyAttendanceData.length;
+
+  $("monthlyReportSubtitle").innerText =
+    `Showing: ${month} | Class: ${className} | Section: ${section} | Records: ${count}`;
+}
+
+function renderMonthlyReport(records) {
+  renderMonthlyClassSummary(records);
+  renderMonthlyStudentSummary(records);
+  renderMonthlyAbsentList(records);
+}
+
+function renderMonthlyClassSummary(records) {
+  const table = $("monthlyClassSummaryTable");
+  table.innerHTML = "";
+
+  const map = {};
+
+  records.forEach((record) => {
+    const key = `${record.className || "Unassigned"}_${record.section || "-"}`;
+
+    if (!map[key]) {
+      map[key] = {
+        className: getDisplayClassName(record.className) || "Unassigned",
+        section: record.section || "-",
+        total: 0,
+        present: 0,
+        absent: 0,
+        late: 0
+      };
+    }
+
+    map[key].total++;
+    if (record.status === "Present") map[key].present++;
+    if (record.status === "Absent") map[key].absent++;
+    if (record.status === "Late") map[key].late++;
+  });
+
+  const rows = Object.values(map).sort((a, b) =>
+    String(a.className).localeCompare(String(b.className), undefined, { numeric: true })
+  );
+
+  if (!rows.length) {
+    table.innerHTML = `<tr><td colspan="7">No monthly data found</td></tr>`;
+    return;
+  }
+
+  rows.forEach((item) => {
+    const percent = item.total ? ((item.present / item.total) * 100).toFixed(2) : "0.00";
+    const row = document.createElement("tr");
+
+    row.innerHTML = `
+      <td>${escapeHtml(item.className)}</td>
+      <td>${escapeHtml(item.section)}</td>
+      <td>${item.total}</td>
+      <td>${item.present}</td>
+      <td>${item.absent}</td>
+      <td>${item.late}</td>
+      <td>${percent}%</td>
+    `;
+
+    table.appendChild(row);
+  });
+}
+
+function renderMonthlyStudentSummary(records) {
+  const table = $("monthlyStudentSummaryTable");
+  table.innerHTML = "";
+
+  const map = {};
+
+  records.forEach((record) => {
+    const key = record.studentDocId || record.studentId || record.id;
+
+    if (!map[key]) {
+      map[key] = {
+        roll: record.roll || "",
+        name: record.studentName || "",
+        className: getDisplayClassName(record.className) || "",
+        section: record.section || "",
+        total: 0,
+        present: 0,
+        absent: 0,
+        late: 0
+      };
+    }
+
+    map[key].total++;
+    if (record.status === "Present") map[key].present++;
+    if (record.status === "Absent") map[key].absent++;
+    if (record.status === "Late") map[key].late++;
+  });
+
+  const rows = Object.values(map).sort((a, b) => Number(a.roll || 0) - Number(b.roll || 0));
+
+  if (!rows.length) {
+    table.innerHTML = `<tr><td colspan="8">No student summary found</td></tr>`;
+    return;
+  }
+
+  rows.forEach((item) => {
+    const percent = item.total ? ((item.present / item.total) * 100).toFixed(2) : "0.00";
+    const row = document.createElement("tr");
+
+    row.innerHTML = `
+      <td>${escapeHtml(item.roll)}</td>
+      <td>${escapeHtml(item.name)}</td>
+      <td>${escapeHtml(item.className)}</td>
+      <td>${escapeHtml(item.section)}</td>
+      <td>${item.present}</td>
+      <td>${item.absent}</td>
+      <td>${item.late}</td>
+      <td>${percent}%</td>
+    `;
+
+    table.appendChild(row);
+  });
+}
+
+function renderMonthlyAbsentList(records) {
+  const table = $("monthlyAbsentTable");
+  table.innerHTML = "";
+
+  const rows = records
+    .filter((record) => record.status === "Absent")
+    .sort((a, b) => String(a.date).localeCompare(String(b.date)));
+
+  if (!rows.length) {
+    table.innerHTML = `<tr><td colspan="6">No absent records found</td></tr>`;
+    return;
+  }
+
+  rows.forEach((record) => {
+    const row = document.createElement("tr");
+
+    row.innerHTML = `
+      <td>${escapeHtml(record.date || "")}</td>
+      <td>${escapeHtml(record.roll || "")}</td>
+      <td>${escapeHtml(record.studentName || "")}</td>
+      <td>${escapeHtml(getDisplayClassName(record.className) || "")}</td>
+      <td>${escapeHtml(record.section || "")}</td>
+      <td>${escapeHtml(record.status || "")}</td>
+    `;
+
+    table.appendChild(row);
+  });
+}
+
+window.downloadMonthlyAttendanceCSV = function () {
+  if (!monthlyAttendanceData.length) {
+    alert("Load monthly report first");
+    return;
+  }
+
+  const rows = monthlyAttendanceData.map((record) => [
+    record.date || "",
+    record.roll || "",
+    record.studentName || "",
+    getDisplayClassName(record.className) || "",
+    record.section || "",
+    record.status || ""
+  ].map(csvSafe).join(","));
+
+  const csv = "Date,Roll,Name,Class,Section,Status\n" + rows.join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+
+  link.href = url;
+  link.download = "monthly-attendance-report.csv";
+  link.click();
+
+  URL.revokeObjectURL(url);
+};
+
+window.downloadMonthlyAttendancePDF = function () {
+  if (!monthlyAttendanceData.length) {
+    alert("Load monthly report first");
+    return;
+  }
+
+  if (!window.jspdf) {
+    alert("PDF library not loaded");
+    return;
+  }
+
+  const { jsPDF } = window.jspdf;
+  const pdf = new jsPDF();
+  const month = $("reportMonth").value || "";
+
+  pdf.setFontSize(16);
+  pdf.text("FH School Management System", 14, 16);
+  pdf.setFontSize(13);
+  pdf.text("Monthly Attendance Report - " + month, 14, 26);
+
+  const studentRows = getMonthlyStudentSummaryRows(monthlyAttendanceData).map((item) => [
+    item.roll,
+    item.name,
+    getDisplayClassName(item.className),
+    item.section,
+    item.present,
+    item.absent,
+    item.late,
+    item.percent + "%"
+  ]);
+
+  pdf.autoTable({
+    startY: 34,
+    head: [["Roll", "Name", "Class", "Section", "Present", "Absent", "Late", "Attendance %"]],
+    body: studentRows
+  });
+
+  const absentRows = monthlyAttendanceData
+    .filter((record) => record.status === "Absent")
+    .map((record) => [
+      record.date || "",
+      record.roll || "",
+      record.studentName || "",
+      getDisplayClassName(record.className) || "",
+      record.section || ""
+    ]);
+
+  pdf.addPage();
+  pdf.setFontSize(13);
+  pdf.text("Monthly Absent List", 14, 16);
+  pdf.autoTable({
+    startY: 24,
+    head: [["Date", "Roll", "Name", "Class", "Section"]],
+    body: absentRows.length ? absentRows : [["-", "-", "No absent records", "-", "-"]]
+  });
+
+  pdf.save(`monthly-attendance-report-${month || "report"}.pdf`);
+};
+
+function getMonthlyStudentSummaryRows(records) {
+  const map = {};
+
+  records.forEach((record) => {
+    const key = record.studentDocId || record.studentId || record.id;
+
+    if (!map[key]) {
+      map[key] = {
+        roll: record.roll || "",
+        name: record.studentName || "",
+        className: record.className || "",
+        section: record.section || "",
+        total: 0,
+        present: 0,
+        absent: 0,
+        late: 0
+      };
+    }
+
+    map[key].total++;
+    if (record.status === "Present") map[key].present++;
+    if (record.status === "Absent") map[key].absent++;
+    if (record.status === "Late") map[key].late++;
+  });
+
+  return Object.values(map)
+    .map((item) => ({
+      ...item,
+      percent: item.total ? ((item.present / item.total) * 100).toFixed(2) : "0.00"
+    }))
+    .sort((a, b) => Number(a.roll || 0) - Number(b.roll || 0));
+}
+
+function getTodayParts() {
+  const today = new Date();
+  const year = today.getFullYear();
+  const monthNumber = String(today.getMonth() + 1).padStart(2, "0");
+  const day = String(today.getDate()).padStart(2, "0");
+  const month = `${year}-${monthNumber}`;
+  const date = `${month}-${day}`;
+
+  return { date, month };
+}
 
 window.downloadCSV = function () {
   const dataToDownload = filteredData.length || isFilterActive()
@@ -926,16 +3423,22 @@ window.downloadCSV = function () {
 
   const rows = dataToDownload.map((student) => [
     student.name || "",
-    student.className || "",
+    getDisplayClassName(student.className) || "",
     student.section || "",
     student.roll || "",
     student.studentEmail || "",
+    student.fatherName || "",
+    student.motherName || "",
+    student.guardianPhone || "",
+    student.emergencyContact || "",
+    student.bloodGroup || "",
+    student.address || "",
     student.marks || 0,
     student.attendance || "",
     student.attendancePercent || 0
   ].map(csvSafe).join(","));
 
-  const csv = "Name,Class,Section,Roll,Student Email,Marks,Attendance,Attendance Percent\n" + rows.join("\n");
+  const csv = "Name,Class,Section,Roll,Student Email,Father Name,Mother Name,Guardian Phone,Emergency Contact,Blood Group,Address,Marks,Attendance,Attendance Percent\n" + rows.join("\n");
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
@@ -977,16 +3480,22 @@ window.downloadResultPDF = function () {
   pdf.text("FH School Management System", 14, 16);
 
   pdf.setFontSize(13);
-  pdf.text("Student Result Card", 14, 26);
+  pdf.text("Student Result Card - " + getCurrentTermLabel(), 14, 26);
 
   pdf.setFontSize(10);
   pdf.text("Name: " + (student.name || "-"), 14, 38);
-  pdf.text("Class: " + (student.className || "-"), 14, 45);
+  pdf.text("Class: " + (getDisplayClassName(student.className) || "-"), 14, 45);
   pdf.text("Section: " + (student.section || "-"), 70, 45);
   pdf.text("Roll: " + (student.roll || "-"), 125, 45);
   pdf.text("Email: " + (student.studentEmail || "-"), 14, 52);
   pdf.text("Attendance: " + (student.attendance || "-"), 14, 59);
   pdf.text("Attendance %: " + (student.attendancePercent || 0) + "%", 70, 59);
+  pdf.text("Term: " + getCurrentTermLabel(), 125, 59);
+  pdf.text("Father: " + (student.fatherName || "-"), 14, 66);
+  pdf.text("Mother: " + (student.motherName || "-"), 70, 66);
+  pdf.text("Guardian Phone: " + (student.guardianPhone || "-"), 14, 73);
+  pdf.text("Blood Group: " + (student.bloodGroup || "-"), 100, 73);
+  const markLabels = getResultMarkLabels();
 
   const rows = subjectsList.map((subject) => {
     const marks = subjects[subject.key] || {};
@@ -1004,8 +3513,8 @@ window.downloadResultPDF = function () {
   });
 
   pdf.autoTable({
-    startY: 68,
-    head: [["Subject", "Class Mark", "Quiz Mark", "Exam Mark", "Total"]],
+    startY: 82,
+    head: [["Subject", markLabels.first, markLabels.second, markLabels.third, "Total"]],
     body: rows
   });
 
@@ -1019,11 +3528,15 @@ window.downloadResultPDF = function () {
   pdf.text("Recommendation:", 14, y + 34);
   pdf.text(pdf.splitTextToSize(result.recommendation, 180), 14, y + 41);
 
-  const fileName = `result-card-${student.roll || student.name || "student"}.pdf`;
+  const fileName = `result-card-${currentResultTerm}-${student.roll || student.name || "student"}.pdf`;
   pdf.save(fileName);
 };
 
 function collectCurrentModalSubjects() {
+  if (currentResultTerm === "yearlyFinal" && selectedStudentForMarks) {
+    return calculateYearlyFinalSubjects(selectedStudentForMarks);
+  }
+
   const subjects = createEmptySubjects();
 
   document.querySelectorAll("#modalMarksTable .subjectMark").forEach((input) => {

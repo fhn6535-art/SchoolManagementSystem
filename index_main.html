@@ -18,7 +18,8 @@
       <h2>FH School Management Login</h2>
       <input id="email" type="email" placeholder="Email" />
       <input id="password" type="password" placeholder="Password" />
-      <button onclick="login()">Login</button>
+      <button id="loginBtn" onclick="handleLoginClick()" disabled>Loading app...</button>
+      <p id="loginStatus" style="min-height:20px;margin:8px 0 0;color:#64748b;">Loading app...</p>
     </div>
   </div>
 
@@ -33,6 +34,22 @@
         </div>
 
         <div id="dashboardPage">
+          <div class="card" id="dashboardNoticeBoard">
+            <h3>Notice Board</h3>
+            <div id="dashboardNotices" class="noticeList">
+              <div class="emptyState">No notices found</div>
+            </div>
+          </div>
+
+          <div class="card" id="teacherProfileCard" style="display:none;">
+            <h3>Teacher Profile</h3>
+            <div class="profileBox">
+              <p><b>Name:</b> <span id="teacherProfileName">-</span></p>
+              <p><b>Assigned Class/Section:</b></p>
+              <div id="teacherAssignmentList" class="assignmentList">-</div>
+            </div>
+          </div>
+
           <div class="statsRow" id="statsRow">
             <div class="card">
               <h3>Total Students</h3>
@@ -86,6 +103,18 @@
         <b>Roll:</b> <span id="studentProfileRoll">-</span>
       </p>
       <p><b>Email:</b> <span id="studentProfileEmail">-</span></p>
+      <p>
+        <b>Father:</b> <span id="studentProfileFather">-</span> |
+        <b>Mother:</b> <span id="studentProfileMother">-</span>
+      </p>
+      <p>
+        <b>Guardian Phone:</b> <span id="studentProfileGuardianPhone">-</span> |
+        <b>Emergency:</b> <span id="studentProfileEmergency">-</span>
+      </p>
+      <p>
+        <b>Blood Group:</b> <span id="studentProfileBloodGroup">-</span> |
+        <b>Address:</b> <span id="studentProfileAddress">-</span>
+      </p>
       <p>
         <b>Attendance:</b> <span id="studentProfileAttendance">-</span> |
         <b>Attendance %:</b> <span id="studentProfileAttendancePercent">0%</span>
@@ -145,18 +174,16 @@
 
               <div class="formRow">
                 <input id="name" placeholder="Name" />
-                <input id="studentClass" placeholder="Class" />
-                <input id="section" placeholder="Section" />
+                <select id="studentClass"></select>
+                <select id="section"></select>
                 <input id="roll" placeholder="Roll" />
                 <input id="studentEmail" type="email" placeholder="Student Email" />
-                <input id="attendancePercent" type="number" min="0" max="100" placeholder="Attendance %" />
-                <input id="marks" type="number" min="0" placeholder="Overall Marks" />
-
-                <select id="attendance">
-                  <option>Present</option>
-                  <option>Absent</option>
-                  <option>Late</option>
-                </select>
+                <input id="fatherName" placeholder="Father Name" />
+                <input id="motherName" placeholder="Mother Name" />
+                <input id="guardianPhone" placeholder="Guardian Phone" />
+                <input id="emergencyContact" placeholder="Emergency Contact" />
+                <input id="bloodGroup" placeholder="Blood Group" />
+                <input id="address" placeholder="Address" />
 
                 <button onclick="addStudent()">Add Student</button>
               </div>
@@ -167,16 +194,18 @@
             <div class="card buttonPanel" id="studentFilterPanel">
               <div class="filterRow" style="margin:0;">
                 <input id="search" placeholder="Search name..." onkeyup="applyFilters()" />
-                <input id="filterClass" placeholder="Class filter" onkeyup="applyFilters()" />
-                <input id="filterSection" placeholder="Section filter" onkeyup="applyFilters()" />
+                <select id="filterClass" onchange="applyFilters()"></select>
+                <select id="filterSection" onchange="applyFilters()"></select>
               </div>
               <button id="csvBtn" onclick="downloadCSV()">Download CSV</button>
             </div>
 
             <div class="tableWrap">
+              <div class="tableCount" id="studentsListCount">Total Students: 0</div>
               <table>
                 <thead>
                   <tr>
+                    <th>SL</th>
                     <th>Name</th>
                     <th>Class</th>
                     <th>Section</th>
@@ -191,50 +220,170 @@
                 <tbody id="table"></tbody>
               </table>
               <div id="emptyStudents" class="emptyState" style="display:none;">No students found</div>
+            </div>       
+          </div>
+        </div>
+
+        <div id="noticePage" style="display:none;">
+          <div class="card">
+            <h3>Publish Notice</h3>
+            <div class="formRow">
+              <input id="noticeTitle" placeholder="Notice Title">
+              <select id="noticeAudience">
+                <option value="all">All</option>
+                <option value="students">Students</option>
+                <option value="teachers">Teachers</option>
+              </select>
+              <textarea id="noticeMessage" class="noticeInput" placeholder="Notice message"></textarea>
+              <button onclick="publishNotice()">Publish Notice</button>
             </div>
+          </div>
 
-            <div id="marksPanel" class="card" style="display:none; margin-top:18px;">
-              <h3>Student-wise Subject Marks Update</h3>
-
-              <div class="profileBox">
-                <p><b>Name:</b> <span id="profileName">-</span></p>
-                <p>
-                  <b>Class:</b> <span id="profileClass">-</span> |
-                  <b>Section:</b> <span id="profileSection">-</span> |
-                  <b>Roll:</b> <span id="profileRoll">-</span>
-                </p>
-                <p><b>Email:</b> <span id="profileEmail">-</span></p>
-              </div>
-
-              <div class="tableWrap">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Subject</th>
-                      <th>Class Mark</th>
-                      <th>Quiz Mark</th>
-                      <th>Exam Mark</th>
-                      <th>Total</th>
-                    </tr>
-                  </thead>
-                  <tbody id="marksTable"></tbody>
-                </table>
-              </div>
-
-              <br />
-
-              <button onclick="updateStudentMarks()">Update Marks</button>
-              <button onclick="closeMarksPanel()" class="secondaryBtn">Cancel</button>
+          <div class="card">
+            <h3>All Notices</h3>
+            <div id="noticeManageList" class="noticeList">
+              <div class="emptyState">No notices found</div>
             </div>
           </div>
         </div>
+
+        <div id="backupPage" style="display:none;">
+          <div class="card">
+            <h3>Backup & Restore</h3>
+            <p style="margin-top:0;color:#64748b;">
+              Download a full JSON backup of important school data. Restore will be added later after safe duplicate checks.
+            </p>
+
+            <div class="backupGrid">
+              <div class="backupItem">
+                <b>Included Data</b>
+                <p>Students, attendance records, notices, and user/teacher profiles.</p>
+              </div>
+              <div class="backupItem">
+                <b>File Format</b>
+                <p>JSON backup file with collection names and document ids.</p>
+              </div>
+              <div class="backupItem">
+                <b>Access</b>
+                <p>Admin only.</p>
+              </div>
+            </div>
+
+            <div class="modalActions">
+              <button onclick="downloadFullBackup()">Download Full JSON Backup</button>
+              <button onclick="repairClassNames()">Repair Class Names</button>
+            </div>
+
+            <p id="backupStatus" class="backupStatus"></p>
+          </div>
+
+          <div class="card">
+            <h3>Restore Preview</h3>
+            <p style="margin-top:0;color:#64748b;">
+              Select a backup JSON file to preview its contents. This will not restore or change any data.
+            </p>
+
+            <div class="formRow">
+              <input id="restoreFile" type="file" accept="application/json,.json">
+              <button onclick="previewRestoreFile()">Preview Backup File</button>
+              <button onclick="compareRestoreFile()">Dry-run Compare</button>
+            </div>
+
+            <div class="restoreConfirmBox">
+              <label>
+                <input id="restoreConfirm" type="checkbox">
+                I understand this will write only new backup records to Firestore and skip existing records.
+              </label>
+              <button class="restoreBtn" onclick="restoreNewBackupData()">Restore New Data Only</button>
+            </div>
+
+            <div id="restorePreviewArea" class="restorePreview" style="display:none;"></div>
+          </div>
+        </div>
+
+        <div id="activityLogPage" style="display:none;">
+          <div class="card">
+            <h3>Activity Log</h3>
+            <p style="margin-top:0;color:#64748b;">
+              Recent admin and teacher actions are listed here for accountability.
+            </p>
+
+            <div class="formRow">
+              <input id="activitySearch" placeholder="Search action, user, or details" onkeyup="renderActivityLogs()">
+              <select id="activityDateFilter" onchange="renderActivityLogs()">
+                <option value="all">All Dates</option>
+                <option value="today">Today</option>
+                <option value="7days">Last 7 Days</option>
+                <option value="custom">Custom Date</option>
+              </select>
+              <input id="activityCustomDate" type="date" onchange="renderActivityLogs()" disabled>
+              <select id="activityActionFilter" onchange="renderActivityLogs()">
+                <option value="all">All Actions</option>
+                <option value="student">Student</option>
+                <option value="attendance">Attendance</option>
+                <option value="marks">Marks/Result</option>
+                <option value="notice">Notice</option>
+                <option value="teacher">Teacher</option>
+                <option value="backup">Backup/Restore</option>
+              </select>
+              <button onclick="loadActivityLogs()">Refresh Logs</button>
+              <button onclick="downloadActivityLogCSV()">Download CSV</button>
+            </div>
+          </div>
+
+          <div class="tableWrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Date & Time</th>
+                  <th>User</th>
+                  <th>Role</th>
+                  <th>Action</th>
+                  <th>Details</th>
+                </tr>
+              </thead>
+              <tbody id="activityLogTable"></tbody>
+            </table>
+            <div id="emptyActivityLogs" class="emptyState" style="display:none;">No activity logs found</div>
+          </div>
+        </div>
+
+        <div id="teachersPage" style="display:none;">
+          <div class="card">
+            <h3>Teacher Class Assignment</h3>
+            <p style="margin-top:0;color:#64748b;">Assign class/section pairs to teachers. Use one assignment per line.</p>
+
+            <div class="formRow">
+              <input id="newTeacherUid" placeholder="Teacher Auth UID">
+              <input id="newTeacherName" placeholder="Teacher Name">
+              <input id="newTeacherEmail" type="email" placeholder="Teacher Email">
+              <button onclick="addTeacherProfile()">Add Teacher Profile</button>
+            </div>
+          </div>
+
+          <div class="tableWrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Email</th>
+                  <th>Assigned Class/Section</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="teachersTable"></tbody>
+            </table>
+          </div>
+        </div>
+
         <div id="attendancePage" style="display:none;">
   <div class="card">
     <h3>Daily Attendance</h3>
 
     <div class="formRow">
-      <input id="attendanceClass" placeholder="Class">
-      <input id="attendanceSection" placeholder="Section">
+      <input id="attendanceDate" type="date">
+      <select id="attendanceClass"></select>
+      <select id="attendanceSection"></select>
       <button onclick="loadAttendanceSheet()">Load Students</button>
     </div>
   </div>
@@ -267,6 +416,85 @@
     </div>
   </div>
 </div>
+
+        <div id="monthlyReportPage" style="display:none;">
+          <div class="card">
+            <h3>Monthly Attendance Report</h3>
+            <p id="monthlyReportSubtitle" style="margin-top:0;color:#64748b;">Select month, class, and section, then load report.</p>
+
+            <div class="formRow">
+              <input id="reportMonth" type="month">
+              <select id="reportClass"></select>
+              <select id="reportSection"></select>
+              <button onclick="loadMonthlyReport()">Load Report</button>
+              <button onclick="downloadMonthlyAttendanceCSV()">Download CSV</button>
+              <button onclick="downloadMonthlyAttendancePDF()">Download PDF</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3>Class-wise Monthly Summary</h3>
+
+            <div class="tableWrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Class</th>
+                    <th>Section</th>
+                    <th>Total Records</th>
+                    <th>Present</th>
+                    <th>Absent</th>
+                    <th>Late</th>
+                    <th>Attendance %</th>
+                  </tr>
+                </thead>
+                <tbody id="monthlyClassSummaryTable"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3>Student-wise Monthly Summary</h3>
+
+            <div class="tableWrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Roll</th>
+                    <th>Name</th>
+                    <th>Class</th>
+                    <th>Section</th>
+                    <th>Present</th>
+                    <th>Absent</th>
+                    <th>Late</th>
+                    <th>Attendance %</th>
+                  </tr>
+                </thead>
+                <tbody id="monthlyStudentSummaryTable"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3>Monthly Absent List</h3>
+
+            <div class="tableWrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Roll</th>
+                    <th>Name</th>
+                    <th>Class</th>
+                    <th>Section</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody id="monthlyAbsentTable"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -287,9 +515,30 @@
       </p>
       <p><b>Email:</b> <span id="modalProfileEmail">-</span></p>
       <p>
+        <b>Father:</b> <span id="modalProfileFather">-</span> |
+        <b>Mother:</b> <span id="modalProfileMother">-</span>
+      </p>
+      <p>
+        <b>Guardian Phone:</b> <span id="modalProfileGuardianPhone">-</span> |
+        <b>Emergency:</b> <span id="modalProfileEmergency">-</span>
+      </p>
+      <p>
+        <b>Blood Group:</b> <span id="modalProfileBloodGroup">-</span> |
+        <b>Address:</b> <span id="modalProfileAddress">-</span>
+      </p>
+      <p>
         <b>Attendance:</b> <span id="modalProfileAttendance">-</span> |
         <b>Attendance %:</b> <span id="modalProfileAttendancePercent">0%</span>
       </p>
+    </div>
+
+    <div class="formRow">
+      <select id="resultTermSelect" onchange="changeResultTerm()">
+        <option value="firstTerm">First Term</option>
+        <option value="midTerm">Mid Term</option>
+        <option value="finalTerm">Final Term</option>
+        <option value="yearlyFinal">Yearly Final</option>
+      </select>
     </div>
 
     <div class="tableWrap">
@@ -327,7 +576,57 @@
   </div>
 </div>
 
-<script type="module" src="js/app.js"></script>
+<script>
+  window.addEventListener("error", function (event) {
+    if (event.target && event.target.tagName === "SCRIPT") {
+      alert("Script load failed: " + (event.target.src || "unknown script"));
+    }
+  }, true);
+
+  window.handleLoginClick = function () {
+    if (typeof window.login === "function") {
+      window.login();
+      return;
+    }
+
+    alert("App script not loaded yet. Open Console and check the red error for js/app.js or Firebase imports.");
+  };
+</script>
+<script>
+  import("./js/app.js?v=20260525-login-classic-import")
+    .then(function () {
+      var button = document.getElementById("loginBtn");
+      var status = document.getElementById("loginStatus");
+
+      if (button) {
+        button.disabled = false;
+        button.innerText = "Login";
+      }
+
+      if (status) {
+        status.innerText = "";
+      }
+    })
+    .catch(function (error) {
+      var button = document.getElementById("loginBtn");
+      var status = document.getElementById("loginStatus");
+      var message = error && error.message ? error.message : String(error);
+
+      console.error("App module load failed:", error);
+
+      if (button) {
+        button.disabled = true;
+        button.innerText = "App failed to load";
+      }
+
+      if (status) {
+        status.innerText = "App failed to load: " + message;
+        status.style.color = "#e74c3c";
+      }
+
+      alert("App module load failed: " + message);
+    });
+</script>
 
 </body>
 </html>
