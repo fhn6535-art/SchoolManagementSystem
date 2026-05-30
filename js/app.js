@@ -67,6 +67,15 @@ const classOptions = [
 ];
 
 const sectionOptions = ["A", "B", "C"];
+const backupCollectionNames = [
+  "students",
+  "attendanceRecords",
+  "notices",
+  "users",
+  "homeworks",
+  "homeworkSubmissions",
+  "feeRecords"
+];
 
 let allData = [];
 let filteredData = [];
@@ -86,6 +95,9 @@ let attendanceRecordBackfillDone = false;
 let allNotices = [];
 let activityLogs = [];
 let filteredActivityLogs = [];
+let allHomeworks = [];
+let allHomeworkSubmissions = [];
+let allFeeRecords = [];
 
 const $ = (id) => document.getElementById(id);
 
@@ -113,6 +125,10 @@ function setupClassSectionDropdowns() {
   setSelectOptions("attendanceSection", sectionOptions, "Select Section");
   setSelectOptions("reportClass", classOptions, "All Classes");
   setSelectOptions("reportSection", sectionOptions, "All Sections");
+  setSelectOptions("homeworkClass", classOptions, "Select Class");
+  setSelectOptions("homeworkSection", sectionOptions, "Select Section");
+  setSelectOptions("feeClass", classOptions, "Select Class");
+  setSelectOptions("feeSection", sectionOptions, "Select Section");
   applyTeacherScopedDropdowns();
 }
 
@@ -137,12 +153,15 @@ function applyTeacherScopedDropdowns() {
 
   setSelectOptions("attendanceClass", assignedClasses, "Select Assigned Class");
   setSelectOptions("reportClass", assignedClasses, "All Assigned Classes");
+  setSelectOptions("homeworkClass", assignedClasses, "Select Assigned Class");
 
   ensureTeacherAttendanceSelection();
   updateTeacherSectionDropdown("reportClass", "reportSection", "All Assigned Sections");
+  updateTeacherSectionDropdown("homeworkClass", "homeworkSection", "Select Assigned Section");
 
   const attendanceClassSelect = $("attendanceClass");
   const reportClassSelect = $("reportClass");
+  const homeworkClassSelect = $("homeworkClass");
 
   if (attendanceClassSelect) {
     attendanceClassSelect.onchange = () => {
@@ -157,6 +176,12 @@ function applyTeacherScopedDropdowns() {
       monthlyAttendanceData = [];
       updateMonthlyReportSubtitle();
       renderMonthlyReport(monthlyAttendanceData);
+    };
+  }
+
+  if (homeworkClassSelect) {
+    homeworkClassSelect.onchange = () => {
+      updateTeacherSectionDropdown("homeworkClass", "homeworkSection", "Select Assigned Section", true);
     };
   }
 }
@@ -332,6 +357,8 @@ function setupRoleUI(displayName) {
       <p data-page="students" onclick="showPage('students')">Students</p>
       <p data-page="teachers" onclick="showPage('teachers')">Teachers</p>
       <p data-page="notices" onclick="showPage('notices')">Notice Board</p>
+      <p data-page="homework" onclick="showPage('homework')">Homework</p>
+      <p data-page="fees" onclick="showPage('fees')">Fees</p>
       <p data-page="attendance" onclick="showPage('attendance')">Attendance</p>
       <p data-page="monthlyReport" onclick="showPage('monthlyReport')">Monthly Report</p>
       <p data-page="backup" onclick="showPage('backup')">Backup</p>
@@ -352,6 +379,7 @@ function setupRoleUI(displayName) {
       <p data-page="dashboard" onclick="showPage('dashboard')">Dashboard</p>
       <p data-page="students" onclick="showPage('students')">Students</p>
       <p data-page="notices" onclick="showPage('notices')">Notice Board</p>
+      <p data-page="homework" onclick="showPage('homework')">Homework</p>
       <p data-page="attendance" onclick="showPage('attendance')">Attendance</p>
       <p data-page="monthlyReport" onclick="showPage('monthlyReport')">Monthly Report</p>
       <p onclick="logout()">Logout</p>
@@ -370,6 +398,8 @@ function setupRoleUI(displayName) {
       <h2>Student Panel</h2><hr>
       <p data-page="dashboard" onclick="showPage('dashboard')">My Dashboard</p>
       <p data-page="students" onclick="showPage('students')">My Record</p>
+      <p data-page="homework" onclick="showPage('homework')">My Homework</p>
+      <p data-page="fees" onclick="showPage('fees')">My Fees</p>
       <p onclick="logout()">Logout</p>
     `;
 
@@ -389,6 +419,8 @@ window.showPage = function (page) {
   hide("dashboardPage");
   hide("studentsPage");
   hide("noticePage");
+  hide("homeworkPage");
+  hide("feesPage");
   hide("backupPage");
   hide("activityLogPage");
   hide("teachersPage");
@@ -453,6 +485,32 @@ window.showPage = function (page) {
 
     show("noticePage");
     renderNoticeBoard();
+    return;
+  }
+
+  if (page === "homework") {
+    if (!["admin", "teacher", "student"].includes(currentRole)) {
+      alert("You do not have permission");
+      showPage("dashboard");
+      return;
+    }
+
+    show("homeworkPage");
+    setupHomeworkPageForRole();
+    loadHomeworkData();
+    return;
+  }
+
+  if (page === "fees") {
+    if (currentRole !== "admin" && currentRole !== "student") {
+      alert("Only admin and student can access fees");
+      showPage("dashboard");
+      return;
+    }
+
+    show("feesPage");
+    setupFeesPageForRole();
+    loadFeeRecords();
     return;
   }
 
@@ -646,6 +704,8 @@ function activityActionMatches(action, filter) {
     attendance: ["attendance"],
     marks: ["marks", "result"],
     notice: ["notice"],
+    homework: ["homework"],
+    fees: ["fee", "fees"],
     teacher: ["teacher", "assignment"],
     backup: ["backup", "restore", "repair"]
   };
@@ -867,6 +927,820 @@ window.deleteNotice = async function (id) {
   }
 };
 
+function setupHomeworkPageForRole() {
+  if (currentRole === "student") {
+    hide("homeworkPublishCard");
+    hide("homeworkSubmissionCard");
+    $("homeworkListTitle").innerText = "My Homework";
+    return;
+  }
+
+  show("homeworkPublishCard");
+  $("homeworkListTitle").innerText = "Homework";
+
+  if (currentRole === "teacher") {
+    applyTeacherScopedDropdowns();
+
+    const classSelect = $("homeworkClass");
+    if (classSelect && !classSelect.value && currentTeacherAssignments.length) {
+      classSelect.value = currentTeacherAssignments[0].classNameRaw;
+      updateTeacherSectionDropdown("homeworkClass", "homeworkSection", "Select Assigned Section", true);
+    }
+  }
+}
+
+window.loadHomeworkData = async function () {
+  try {
+    const [homeworks, submissions] = await Promise.all([
+      loadScopedHomeworks(),
+      loadScopedHomeworkSubmissions()
+    ]);
+
+    allHomeworks = homeworks;
+    allHomeworkSubmissions = submissions;
+
+    allHomeworks.sort((a, b) => Number(b.createdAtMillis || 0) - Number(a.createdAtMillis || 0));
+    renderHomeworkList();
+  } catch (error) {
+    alert("Homework load failed: " + error.message);
+  }
+};
+
+async function loadScopedHomeworks() {
+  if (currentRole === "admin") {
+    return getCollectionRows("homeworks");
+  }
+
+  if (currentRole === "student") {
+    const student = getCurrentStudentRecord();
+    if (!student) return [];
+
+    return getCollectionRows(
+      "homeworks",
+      query(
+        collection(db, "homeworks"),
+        where("classSection", "==", getClassSectionValue(student.className, student.section))
+      )
+    );
+  }
+
+  return getRowsForAssignedClassSections("homeworks");
+}
+
+async function loadScopedHomeworkSubmissions() {
+  if (currentRole === "admin") {
+    return getCollectionRows("homeworkSubmissions");
+  }
+
+  if (currentRole === "student") {
+    if (!currentStudentId) return [];
+
+    return getCollectionRows(
+      "homeworkSubmissions",
+      query(collection(db, "homeworkSubmissions"), where("studentId", "==", currentStudentId))
+    );
+  }
+
+  return getRowsForAssignedClassSections("homeworkSubmissions");
+}
+
+async function getRowsForAssignedClassSections(collectionName) {
+  const values = uniqueValues(
+    currentTeacherAssignments
+      .filter((assignment) => assignment.sectionRaw)
+      .map((assignment) => getClassSectionValue(assignment.classNameRaw, assignment.sectionRaw))
+  );
+
+  const rows = [];
+
+  for (let index = 0; index < values.length; index += 10) {
+    const chunk = values.slice(index, index + 10);
+    if (!chunk.length) continue;
+
+    const snap = await getDocs(
+      query(collection(db, collectionName), where("classSection", "in", chunk))
+    );
+
+    snap.forEach((item) => rows.push({ id: item.id, ...item.data() }));
+  }
+
+  return rows;
+}
+
+async function getCollectionRows(collectionName, scopedQuery = null) {
+  const snap = scopedQuery
+    ? await getDocs(scopedQuery)
+    : await getDocs(collection(db, collectionName));
+  const rows = [];
+
+  snap.forEach((item) => rows.push({ id: item.id, ...item.data() }));
+
+  return rows;
+}
+
+window.publishHomework = async function () {
+  if (currentRole !== "admin" && currentRole !== "teacher") {
+    alert("Only admin and teacher can publish homework");
+    return;
+  }
+
+  const className = $("homeworkClass").value.trim();
+  const section = $("homeworkSection").value.trim();
+  const subject = $("homeworkSubject").value.trim();
+  const title = $("homeworkTitle").value.trim();
+  const deadline = $("homeworkDeadline").value;
+  const attachmentUrl = $("homeworkAttachment").value.trim();
+  const description = $("homeworkDescription").value.trim();
+  const user = auth.currentUser;
+
+  if (!className || !section || !subject || !title || !deadline || !description) {
+    alert("Fill class, section, subject, title, deadline, and details");
+    return;
+  }
+
+  if (currentRole === "teacher" && !canTeacherAccessClassSection(className, section)) {
+    alert("You can publish homework only for your assigned class/section");
+    return;
+  }
+
+  try {
+    const docRef = await addDoc(collection(db, "homeworks"), {
+      className,
+      section,
+      classSection: getClassSectionValue(className, section),
+      subject,
+      title,
+      description,
+      deadline,
+      attachmentUrl,
+      createdBy: user ? user.uid : "",
+      createdByName: currentDisplayName || currentRole,
+      createdByRole: currentRole,
+      createdAtMillis: Date.now(),
+      createdAt: serverTimestamp()
+    });
+
+    await addActivityLog("Homework Published", {
+      homeworkId: docRef.id,
+      title,
+      className,
+      section,
+      subject,
+      deadline
+    });
+
+    clearHomeworkForm();
+    await loadHomeworkData();
+    alert("Homework published successfully");
+  } catch (error) {
+    alert("Homework publish failed: " + error.message);
+  }
+};
+
+function clearHomeworkForm() {
+  ["homeworkSubject", "homeworkTitle", "homeworkDeadline", "homeworkAttachment", "homeworkDescription"]
+    .forEach((id) => {
+      if ($(id)) $(id).value = "";
+    });
+}
+
+function renderHomeworkList() {
+  const table = $("homeworkTable");
+  const empty = $("emptyHomework");
+
+  if (!table || !empty) return;
+
+  const homeworks = getVisibleHomeworks();
+  table.innerHTML = "";
+  empty.style.display = homeworks.length ? "none" : "block";
+
+  homeworks.forEach((homework) => {
+    const submission = getHomeworkSubmissionForCurrentStudent(homework.id);
+    const status = getHomeworkStatus(homework, submission);
+    const row = document.createElement("tr");
+
+    row.innerHTML = `
+      <td>${escapeHtml(getDisplayClassName(homework.className) || "")}</td>
+      <td>${escapeHtml(homework.section || "")}</td>
+      <td>${escapeHtml(homework.subject || "")}</td>
+      <td>
+        <b>${escapeHtml(homework.title || "")}</b>
+        <p class="homeworkDetails">${escapeHtml(homework.description || "")}</p>
+        ${homework.attachmentUrl ? `<a href="${escapeHtml(homework.attachmentUrl)}" target="_blank">Attachment</a>` : ""}
+      </td>
+      <td>${escapeHtml(homework.deadline || "-")}</td>
+      <td><span class="statusBadge ${getHomeworkStatusClass(status)}">${escapeHtml(status)}</span></td>
+      <td>${getHomeworkActionButtons(homework, submission)}</td>
+    `;
+
+    table.appendChild(row);
+  });
+}
+
+function getVisibleHomeworks() {
+  return allHomeworks.filter((homework) => {
+    if (currentRole === "admin") return true;
+    if (currentRole === "teacher") {
+      return canTeacherAccessClassSection(homework.className, homework.section);
+    }
+
+    const student = getCurrentStudentRecord();
+    if (!student) return false;
+
+    return normalizeClassName(student.className) === normalizeClassName(homework.className)
+      && normalizeText(student.section) === normalizeText(homework.section);
+  });
+}
+
+function getHomeworkActionButtons(homework, submission) {
+  if (currentRole === "student") {
+    const label = submission ? "Update Submission" : "Submit";
+    return `<button class="actionBtn editBtn" onclick="submitHomework('${homework.id}')">${label}</button>`;
+  }
+
+  const canDelete = currentRole === "admin" || homework.createdBy === auth.currentUser?.uid;
+
+  return `
+    <button class="actionBtn" onclick="viewHomeworkSubmissions('${homework.id}')">View Submissions</button>
+    ${canDelete ? `<button class="actionBtn deleteBtn" onclick="deleteHomework('${homework.id}')">Delete</button>` : ""}
+  `;
+}
+
+window.submitHomework = async function (homeworkId) {
+  if (currentRole !== "student") {
+    alert("Only students can submit homework");
+    return;
+  }
+
+  const homework = allHomeworks.find((item) => item.id === homeworkId);
+  const student = getCurrentStudentRecord();
+
+  if (!homework || !student) {
+    alert("Homework or student record not found");
+    return;
+  }
+
+  const existing = getHomeworkSubmissionForCurrentStudent(homeworkId);
+  const submissionText = prompt("Write submission text or paste file/link", existing?.submissionText || "");
+
+  if (submissionText === null) return;
+  if (!submissionText.trim()) {
+    alert("Submission cannot be empty");
+    return;
+  }
+
+  const submissionId = `${homeworkId}_${student.id}`;
+  const now = Date.now();
+
+  try {
+    await setDoc(doc(db, "homeworkSubmissions", submissionId), {
+      homeworkId,
+      studentDocId: student.id,
+      studentId: student.studentId || student.studentEmail || "",
+      studentName: student.name || "",
+      roll: student.roll || "",
+      className: student.className || "",
+      section: student.section || "",
+      classSection: getClassSectionValue(student.className, student.section),
+      submissionText: submissionText.trim(),
+      submittedAtMillis: now,
+      submittedAt: serverTimestamp(),
+      status: isAfterHomeworkDeadline(homework, now) ? "Late" : "Submitted"
+    }, { merge: true });
+
+    await addActivityLog("Homework Submitted", {
+      homeworkId,
+      title: homework.title || "-",
+      studentName: student.name || "-"
+    });
+
+    await loadHomeworkData();
+    alert("Homework submitted successfully");
+  } catch (error) {
+    alert("Homework submission failed: " + error.message);
+  }
+};
+
+window.viewHomeworkSubmissions = function (homeworkId) {
+  const homework = allHomeworks.find((item) => item.id === homeworkId);
+
+  if (!homework) {
+    alert("Homework not found");
+    return;
+  }
+
+  show("homeworkSubmissionCard");
+  $("homeworkSubmissionTitle").innerText = `Submissions - ${homework.title || "Homework"}`;
+
+  const table = $("homeworkSubmissionTable");
+  const empty = $("emptyHomeworkSubmissions");
+  const submissions = allHomeworkSubmissions
+    .filter((submission) => submission.homeworkId === homeworkId)
+    .sort((a, b) => Number(a.roll || 0) - Number(b.roll || 0));
+
+  table.innerHTML = "";
+  empty.style.display = submissions.length ? "none" : "block";
+
+  submissions.forEach((submission) => {
+    const row = document.createElement("tr");
+    row.innerHTML = `
+      <td>${escapeHtml(submission.studentName || "-")}</td>
+      <td>${escapeHtml(submission.roll || "-")}</td>
+      <td><span class="statusBadge ${getHomeworkStatusClass(submission.status)}">${escapeHtml(submission.status || "-")}</span></td>
+      <td>${escapeHtml(submission.submissionText || "-")}</td>
+      <td>${escapeHtml(formatActivityDate(submission.submittedAtMillis))}</td>
+    `;
+    table.appendChild(row);
+  });
+};
+
+window.deleteHomework = async function (homeworkId) {
+  const homework = allHomeworks.find((item) => item.id === homeworkId);
+  const canDelete = currentRole === "admin" || homework?.createdBy === auth.currentUser?.uid;
+
+  if (!canDelete) {
+    alert("You do not have permission to delete this homework");
+    return;
+  }
+
+  if (!confirm("Delete this homework? Existing submissions will remain for record.")) return;
+
+  try {
+    await deleteDoc(doc(db, "homeworks", homeworkId));
+    await addActivityLog("Homework Deleted", {
+      homeworkId,
+      title: homework?.title || "-"
+    });
+    await loadHomeworkData();
+  } catch (error) {
+    alert("Homework delete failed: " + error.message);
+  }
+};
+
+function getCurrentStudentRecord() {
+  return allData.find((student) =>
+    normalizeText(student.studentId) === normalizeText(currentStudentId)
+    || normalizeText(student.studentEmail) === normalizeText(currentStudentId)
+  ) || allData[0] || null;
+}
+
+function getHomeworkSubmissionForCurrentStudent(homeworkId) {
+  const student = getCurrentStudentRecord();
+  if (!student) return null;
+
+  return allHomeworkSubmissions.find((submission) =>
+    submission.homeworkId === homeworkId
+    && (
+      submission.studentDocId === student.id
+      || normalizeText(submission.studentId) === normalizeText(currentStudentId)
+    )
+  ) || null;
+}
+
+function getHomeworkStatus(homework, submission) {
+  if (submission) {
+    return submission.status || (isAfterHomeworkDeadline(homework, submission.submittedAtMillis) ? "Late" : "Submitted");
+  }
+
+  return isAfterHomeworkDeadline(homework) ? "Late" : "Pending";
+}
+
+function isAfterHomeworkDeadline(homework, timestamp = Date.now()) {
+  if (!homework?.deadline) return false;
+
+  const deadlineEnd = new Date(homework.deadline + "T23:59:59").getTime();
+  return timestamp > deadlineEnd;
+}
+
+function getHomeworkStatusClass(status) {
+  if (status === "Submitted") return "statusSubmitted";
+  if (status === "Late") return "statusLate";
+  return "statusPending";
+}
+
+function setupFeesPageForRole() {
+  if (currentRole === "student") {
+    hide("feeCreateCard");
+    $("feeListTitle").innerText = "My Fees";
+    return;
+  }
+
+  show("feeCreateCard");
+  $("feeListTitle").innerText = "Fees";
+
+  if (!$("feeMonth").value) {
+    $("feeMonth").value = getTodayParts().month;
+  }
+}
+
+window.loadFeeRecords = async function () {
+  try {
+    allFeeRecords = await loadScopedFeeRecords();
+    allFeeRecords.sort((a, b) => {
+      const statusOrder = getFeeStatus(a).localeCompare(getFeeStatus(b));
+      if (statusOrder !== 0) return statusOrder;
+      return String(b.feeMonth || "").localeCompare(String(a.feeMonth || ""));
+    });
+
+    renderFees();
+  } catch (error) {
+    alert("Fee records load failed: " + error.message);
+  }
+};
+
+async function loadScopedFeeRecords() {
+  if (currentRole === "admin") {
+    return getCollectionRows("feeRecords");
+  }
+
+  if (currentRole === "student") {
+    const student = getCurrentStudentRecord();
+    const studentIds = uniqueValues([
+      currentStudentId,
+      student?.studentId,
+      student?.studentEmail
+    ].filter(Boolean));
+
+    if (!studentIds.length) return [];
+
+    return getRowsByFieldValues("feeRecords", "studentId", studentIds);
+  }
+
+  return [];
+}
+
+async function getRowsByFieldValues(collectionName, fieldName, values) {
+  const rows = [];
+
+  for (let index = 0; index < values.length; index += 10) {
+    const chunk = values.slice(index, index + 10);
+    if (!chunk.length) continue;
+
+    const snap = await getDocs(
+      query(collection(db, collectionName), where(fieldName, "in", chunk))
+    );
+
+    snap.forEach((item) => rows.push({ id: item.id, ...item.data() }));
+  }
+
+  const merged = new Map();
+  rows.forEach((row) => merged.set(row.id, row));
+  return Array.from(merged.values());
+}
+
+window.generateFees = async function () {
+  if (currentRole !== "admin") {
+    alert("Only admin can generate fees");
+    return;
+  }
+
+  const className = $("feeClass").value.trim();
+  const section = $("feeSection").value.trim();
+  const feeType = $("feeType").value.trim();
+  const feeMonth = $("feeMonth").value;
+  const amount = Number($("feeAmount").value || 0);
+  const dueDate = $("feeDueDate").value;
+
+  if (!className || !section || !feeType || !feeMonth || !amount || !dueDate) {
+    alert("Fill class, section, fee type, month, amount, and due date");
+    return;
+  }
+
+  const students = allData.filter((student) =>
+    normalizeClassName(student.className) === normalizeClassName(className)
+    && normalizeText(student.section) === normalizeText(section)
+  );
+
+  if (!students.length) {
+    alert("No students found for this class and section");
+    return;
+  }
+
+  if (!confirm(`Generate ${feeType} for ${students.length} students?`)) return;
+
+  const feeTypeKey = normalizeFeeType(feeType);
+  let added = 0;
+  let skipped = 0;
+
+  try {
+    for (const student of students) {
+      const feeId = `${feeMonth}_${feeTypeKey}_${student.id}`;
+      const feeRef = doc(db, "feeRecords", feeId);
+      const existing = await getDoc(feeRef);
+
+      if (existing.exists()) {
+        skipped++;
+        continue;
+      }
+
+      await setDoc(feeRef, {
+        studentDocId: student.id,
+        studentId: student.studentId || student.studentEmail || "",
+        studentName: student.name || "",
+        roll: student.roll || "",
+        className: student.className || className,
+        section: student.section || section,
+        classSection: getClassSectionValue(student.className || className, student.section || section),
+        feeType,
+        feeTypeKey,
+        feeMonth,
+        amount,
+        totalAmount: amount,
+        paidAmount: 0,
+        dueAmount: amount,
+        payments: [],
+        dueDate,
+        status: "Due",
+        paidAtMillis: null,
+        createdAtMillis: Date.now(),
+        createdAt: serverTimestamp()
+      });
+
+      added++;
+    }
+
+    await addActivityLog("Fees Generated", {
+      className,
+      section,
+      feeType,
+      feeMonth,
+      amount,
+      added,
+      skipped
+    });
+
+    await loadFeeRecords();
+    alert(`Fees generated. Added: ${added}, Skipped existing: ${skipped}`);
+  } catch (error) {
+    alert("Fee generation failed: " + error.message);
+  }
+};
+
+function renderFees() {
+  const table = $("feeTable");
+  const empty = $("emptyFees");
+
+  if (!table || !empty) return;
+
+  const records = getFilteredFeeRecords();
+  table.innerHTML = "";
+  empty.style.display = records.length ? "none" : "block";
+
+  records.forEach((fee) => {
+    const summary = getFeeSummary(fee);
+    const status = summary.status;
+    const row = document.createElement("tr");
+
+    row.innerHTML = `
+      <td>
+        <b>${escapeHtml(fee.studentName || "-")}</b>
+        <p class="homeworkDetails">Roll: ${escapeHtml(fee.roll || "-")}</p>
+      </td>
+      <td>${escapeHtml(getDisplayClassName(fee.className) || "")}</td>
+      <td>${escapeHtml(fee.section || "")}</td>
+      <td>${escapeHtml(fee.feeType || "")}</td>
+      <td>${escapeHtml(fee.feeMonth || "")}</td>
+      <td>${escapeHtml(formatMoney(summary.totalAmount))}</td>
+      <td>${escapeHtml(formatMoney(summary.paidAmount))}</td>
+      <td>${escapeHtml(formatMoney(summary.dueAmount))}</td>
+      <td>${escapeHtml(fee.dueDate || "-")}</td>
+      <td><span class="statusBadge ${getFeeStatusClass(status)}">${escapeHtml(status)}</span></td>
+      <td>${getFeeActionButtons(fee, status)}</td>
+    `;
+
+    table.appendChild(row);
+  });
+}
+
+function getFilteredFeeRecords() {
+  const search = ($("feeSearch")?.value || "").trim().toLowerCase();
+  const statusFilter = $("feeStatusFilter")?.value || "all";
+
+  return allFeeRecords.filter((fee) => {
+    const summary = getFeeSummary(fee);
+    const status = summary.status;
+    const text = [
+      fee.studentName,
+      fee.roll,
+      fee.className,
+      fee.section,
+      fee.feeType,
+      fee.feeMonth,
+      status,
+      summary.totalAmount,
+      summary.paidAmount,
+      summary.dueAmount
+    ].join(" ").toLowerCase();
+
+    return text.includes(search)
+      && (statusFilter === "all" || status === statusFilter);
+  });
+}
+
+function getFeeActionButtons(fee, status) {
+  if (currentRole !== "admin") {
+    const historyButton = getPaymentHistory(fee).length
+      ? `<button class="actionBtn" onclick="viewFeePaymentHistory('${fee.id}')">History</button>`
+      : "";
+    return historyButton || "-";
+  }
+
+  const paidButton = status === "Paid"
+    ? ""
+    : `<button class="actionBtn editBtn" onclick="addFeePayment('${fee.id}')">Add Payment</button>`;
+
+  return `
+    ${paidButton}
+    <button class="actionBtn" onclick="viewFeePaymentHistory('${fee.id}')">History</button>
+    <button class="actionBtn deleteBtn" onclick="deleteFeeRecord('${fee.id}')">Delete</button>
+  `;
+}
+
+window.addFeePayment = async function (feeId) {
+  if (currentRole !== "admin") {
+    alert("Only admin can add fee payments");
+    return;
+  }
+
+  const fee = allFeeRecords.find((item) => item.id === feeId);
+  if (!fee) {
+    alert("Fee record not found");
+    return;
+  }
+
+  const summary = getFeeSummary(fee);
+  const paymentAmountInput = prompt("Payment amount", summary.dueAmount || summary.totalAmount);
+  if (paymentAmountInput === null) return;
+
+  const paymentAmount = Number(paymentAmountInput || 0);
+
+  if (!paymentAmount || paymentAmount <= 0) {
+    alert("Enter a valid payment amount");
+    return;
+  }
+
+  if (paymentAmount > summary.dueAmount) {
+    alert("Payment amount cannot be greater than due amount");
+    return;
+  }
+
+  const now = Date.now();
+  const previousPayments = getPaymentHistory(fee);
+  const newPayment = {
+    amount: paymentAmount,
+    paidAtMillis: now,
+    paidBy: auth.currentUser ? auth.currentUser.uid : "",
+    paidByName: currentDisplayName || "Admin"
+  };
+  const payments = [...previousPayments, newPayment];
+  const paidAmount = payments.reduce((total, payment) => total + Number(payment.amount || 0), 0);
+  const dueAmount = Math.max(summary.totalAmount - paidAmount, 0);
+  const status = dueAmount <= 0 ? "Paid" : "Partial";
+
+  try {
+    await updateDoc(doc(db, "feeRecords", feeId), {
+      status,
+      totalAmount: summary.totalAmount,
+      paidAmount,
+      dueAmount,
+      payments,
+      paidAtMillis: now,
+      paidAt: serverTimestamp(),
+      paidBy: auth.currentUser ? auth.currentUser.uid : ""
+    });
+
+    await addActivityLog("Fee Payment Added", {
+      feeId,
+      studentName: fee.studentName || "-",
+      feeType: fee.feeType || "-",
+      feeMonth: fee.feeMonth || "-",
+      paymentAmount,
+      paidAmount,
+      dueAmount,
+      status
+    });
+
+    await loadFeeRecords();
+  } catch (error) {
+    alert("Fee payment update failed: " + error.message);
+  }
+};
+
+window.markFeePaid = window.addFeePayment;
+
+window.viewFeePaymentHistory = function (feeId) {
+  const fee = allFeeRecords.find((item) => item.id === feeId);
+
+  if (!fee) {
+    alert("Fee record not found");
+    return;
+  }
+
+  const payments = getPaymentHistory(fee);
+
+  if (!payments.length) {
+    alert("No payment history found");
+    return;
+  }
+
+  const lines = payments.map((payment, index) => {
+    return `${index + 1}. ${formatMoney(payment.amount)} - ${formatActivityDate(payment.paidAtMillis)} - ${payment.paidByName || "Admin"}`;
+  });
+
+  alert(`Payment History\n${fee.studentName || "-"} | ${fee.feeType || "-"} | ${fee.feeMonth || "-"}\n\n${lines.join("\n")}`);
+};
+
+window.deleteFeeRecord = async function (feeId) {
+  if (currentRole !== "admin") {
+    alert("Only admin can delete fee records");
+    return;
+  }
+
+  const fee = allFeeRecords.find((item) => item.id === feeId);
+  if (!confirm("Delete this fee record?")) return;
+
+  try {
+    await deleteDoc(doc(db, "feeRecords", feeId));
+    await addActivityLog("Fee Record Deleted", {
+      feeId,
+      studentName: fee?.studentName || "-",
+      feeType: fee?.feeType || "-"
+    });
+    await loadFeeRecords();
+  } catch (error) {
+    alert("Fee delete failed: " + error.message);
+  }
+};
+
+function getFeeStatus(fee) {
+  return getFeeSummary(fee).status;
+}
+
+function getFeeStatusClass(status) {
+  if (status === "Paid") return "statusSubmitted";
+  if (status === "Partial") return "statusPartial";
+  if (status === "Overdue") return "statusLate";
+  return "statusPending";
+}
+
+function getFeeSummary(fee) {
+  const totalAmount = Number(fee.totalAmount ?? fee.amount ?? 0);
+  const paymentHistory = getPaymentHistory(fee);
+  const paidFromHistory = paymentHistory.reduce((total, payment) => {
+    return total + Number(payment.amount || 0);
+  }, 0);
+  const paidAmount = Math.min(
+    Number(fee.paidAmount ?? paidFromHistory ?? 0),
+    totalAmount
+  );
+  const dueAmount = Math.max(totalAmount - paidAmount, 0);
+  let status = "Due";
+
+  if (dueAmount <= 0 && totalAmount > 0) {
+    status = "Paid";
+  } else if (paidAmount > 0) {
+    status = "Partial";
+  } else if (fee.dueDate && new Date() > new Date(fee.dueDate + "T23:59:59")) {
+    status = "Overdue";
+  }
+
+  return {
+    totalAmount,
+    paidAmount,
+    dueAmount,
+    status
+  };
+}
+
+function getPaymentHistory(fee) {
+  if (Array.isArray(fee.payments) && fee.payments.length) {
+    return fee.payments;
+  }
+
+  if (Number(fee.paidAmount || 0) > 0) {
+    return [{
+      amount: Number(fee.paidAmount || 0),
+      paidAtMillis: fee.paidAtMillis || null,
+      paidBy: fee.paidBy || "",
+      paidByName: "Admin"
+    }];
+  }
+
+  return [];
+}
+
+function normalizeFeeType(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "") || "fee";
+}
+
+function formatMoney(value) {
+  return Number(value || 0).toFixed(2);
+}
+
 window.downloadFullBackup = async function () {
   if (currentRole !== "admin") {
     alert("Only admin can download backup");
@@ -886,7 +1760,10 @@ window.downloadFullBackup = async function () {
         students: await getCollectionBackup("students"),
         attendanceRecords: await getCollectionBackup("attendanceRecords"),
         notices: await getCollectionBackup("notices"),
-        users: await getCollectionBackup("users")
+        users: await getCollectionBackup("users"),
+        homeworks: await getCollectionBackup("homeworks"),
+        homeworkSubmissions: await getCollectionBackup("homeworkSubmissions"),
+        feeRecords: await getCollectionBackup("feeRecords")
       }
     };
 
@@ -902,14 +1779,17 @@ window.downloadFullBackup = async function () {
     URL.revokeObjectURL(url);
 
     if (status) {
-      status.innerText = `Backup downloaded. Students: ${backup.collections.students.length}, Attendance: ${backup.collections.attendanceRecords.length}, Notices: ${backup.collections.notices.length}, Users: ${backup.collections.users.length}`;
+      status.innerText = `Backup downloaded. Students: ${backup.collections.students.length}, Attendance: ${backup.collections.attendanceRecords.length}, Notices: ${backup.collections.notices.length}, Users: ${backup.collections.users.length}, Homework: ${backup.collections.homeworks.length}, Fees: ${backup.collections.feeRecords.length}`;
     }
 
     await addActivityLog("Backup Downloaded", {
       students: backup.collections.students.length,
       attendanceRecords: backup.collections.attendanceRecords.length,
       notices: backup.collections.notices.length,
-      users: backup.collections.users.length
+      users: backup.collections.users.length,
+      homeworks: backup.collections.homeworks.length,
+      homeworkSubmissions: backup.collections.homeworkSubmissions.length,
+      feeRecords: backup.collections.feeRecords.length
     });
   } catch (error) {
     if (status) status.innerText = "";
@@ -931,17 +1811,23 @@ window.repairClassNames = async function () {
   try {
     const studentsFixed = await repairCollectionClassNames("students");
     const attendanceFixed = await repairCollectionClassNames("attendanceRecords");
+    const homeworkFixed = await repairCollectionClassNames("homeworks");
+    const homeworkSubmissionFixed = await repairCollectionClassNames("homeworkSubmissions");
+    const feeFixed = await repairCollectionClassNames("feeRecords");
 
     studentKeyBackfillDone = false;
     attendanceRecordBackfillDone = false;
 
     if (status) {
-      status.innerText = `Repair complete. Students updated: ${studentsFixed}, Attendance records updated: ${attendanceFixed}`;
+      status.innerText = `Repair complete. Students updated: ${studentsFixed}, Attendance records updated: ${attendanceFixed}, Homework updated: ${homeworkFixed}, Submissions updated: ${homeworkSubmissionFixed}, Fees updated: ${feeFixed}`;
     }
 
     await addActivityLog("Class Names Repaired", {
       studentsUpdated: studentsFixed,
-      attendanceRecordsUpdated: attendanceFixed
+      attendanceRecordsUpdated: attendanceFixed,
+      homeworksUpdated: homeworkFixed,
+      homeworkSubmissionsUpdated: homeworkSubmissionFixed,
+      feeRecordsUpdated: feeFixed
     });
 
     alert("Class name repair completed");
@@ -1122,7 +2008,7 @@ function renderRestorePreview(backup, validation, fileName) {
   if (!previewArea) return;
 
   const collections = backup.collections || {};
-  const summaryItems = ["students", "attendanceRecords", "notices", "users"]
+  const summaryItems = backupCollectionNames
     .map((collectionName) => {
       const count = Array.isArray(collections[collectionName])
         ? collections[collectionName].length
@@ -1163,10 +2049,9 @@ function renderRestorePreview(backup, validation, fileName) {
 }
 
 async function getRestoreCompareRows(backup) {
-  const collectionNames = ["students", "attendanceRecords", "notices", "users"];
   const rows = [];
 
-  for (const collectionName of collectionNames) {
+  for (const collectionName of backupCollectionNames) {
     const backupRows = Array.isArray(backup.collections?.[collectionName])
       ? backup.collections[collectionName]
       : [];
@@ -1229,10 +2114,9 @@ function renderRestoreCompare(rows) {
 }
 
 async function restoreOnlyNewDocuments(backup) {
-  const collectionNames = ["students", "attendanceRecords", "notices", "users"];
   const resultRows = [];
 
-  for (const collectionName of collectionNames) {
+  for (const collectionName of backupCollectionNames) {
     const backupRows = Array.isArray(backup.collections?.[collectionName])
       ? backup.collections[collectionName]
       : [];
@@ -1321,6 +2205,7 @@ function summarizeRestoreRows(rows) {
 
 function getBackupCollectionLabel(collectionName) {
   if (collectionName === "attendanceRecords") return "Attendance";
+  if (collectionName === "homeworkSubmissions") return "Homework Submissions";
   return collectionName.charAt(0).toUpperCase() + collectionName.slice(1);
 }
 
@@ -2072,10 +2957,10 @@ function updateStudentProfileAndResult(data) {
   $("studentProfileAttendance").innerText = student.attendance || "-";
   $("studentProfileAttendancePercent").innerText = (student.attendancePercent || 0) + "%";
 
-  renderStudentResultCard(getStudentTermSubjects(student, currentResultTerm));
+  renderStudentResultCard(student, getStudentTermSubjects(student, currentResultTerm));
 }
 
-function renderStudentResultCard(subjects) {
+function renderStudentResultCard(student, subjects) {
   const resultTable = $("studentResultTable");
   resultTable.innerHTML = "";
 
@@ -2104,13 +2989,15 @@ function renderStudentResultCard(subjects) {
     resultTable.appendChild(row);
   });
 
-  const maxMarks = subjectCount * 100;
-  const percentage = maxMarks ? ((grandTotal / maxMarks) * 100).toFixed(2) : "0.00";
+  const result = calculateResultSummary(subjects, student);
 
-  $("resultTotalMarks").innerText = grandTotal + " / " + maxMarks;
-  $("resultPercentage").innerText = percentage + "%";
-  $("resultGrade").innerText = getGrade(Number(percentage));
-  $("resultStatus").innerText = Number(percentage) >= 33 ? "Passed" : "Failed";
+  $("resultTotalMarks").innerText = grandTotal + " / " + result.maxMarks;
+  $("resultPercentage").innerText = result.percentage + "%";
+  $("resultGrade").innerText = result.grade;
+  $("resultGpa").innerText = result.gpa;
+  $("resultStatus").innerText = result.status;
+  $("resultSectionMerit").innerText = result.sectionMerit;
+  $("resultClassRank").innerText = result.classRank;
 }
 
 function getStudentTermSubjects(student, termKey) {
@@ -2169,7 +3056,10 @@ function resetResultSummary() {
   $("resultTotalMarks").innerText = "0";
   $("resultPercentage").innerText = "0%";
   $("resultGrade").innerText = "-";
+  $("resultGpa").innerText = "0.00";
   $("resultStatus").innerText = "-";
+  $("resultSectionMerit").innerText = "-";
+  $("resultClassRank").innerText = "-";
 }
 
 function getGrade(percentage) {
@@ -2182,6 +3072,16 @@ function getGrade(percentage) {
   return "F";
 }
 
+function getGpa(percentage) {
+  if (percentage >= 80) return "5.00";
+  if (percentage >= 70) return "4.00";
+  if (percentage >= 60) return "3.50";
+  if (percentage >= 50) return "3.00";
+  if (percentage >= 40) return "2.00";
+  if (percentage >= 33) return "1.00";
+  return "0.00";
+}
+
 function getRecommendation(percentage) {
   if (percentage >= 80) return "Excellent performance. Keep maintaining this result.";
   if (percentage >= 70) return "Very good result. A little more practice can improve the grade further.";
@@ -2189,6 +3089,102 @@ function getRecommendation(percentage) {
   if (percentage >= 50) return "Average result. Regular study and revision are recommended.";
   if (percentage >= 33) return "Passed, but improvement is strongly needed.";
   return "Failed. Extra support, guardian follow-up, and daily study plan are recommended.";
+}
+
+function calculateStudentRanking(student, subjectsOverride = null) {
+  if (!student) {
+    return { sectionMerit: "-", classRank: "-" };
+  }
+
+  const sectionPeers = getRankingPeers(student, true, subjectsOverride);
+  const classPeers = getRankingPeers(student, false, subjectsOverride);
+
+  return {
+    sectionMerit: formatRank(getRankFromPeers(student.id, sectionPeers), sectionPeers.length),
+    classRank: formatRank(getRankFromPeers(student.id, classPeers), classPeers.length)
+  };
+}
+
+function getRankingPeers(student, sameSectionOnly, subjectsOverride) {
+  const targetClass = normalizeClassName(student.className);
+  const targetSection = normalizeText(student.section);
+  const peers = allData.filter((item) => {
+    const classMatch = normalizeClassName(item.className) === targetClass;
+    const sectionMatch = normalizeText(item.section) === targetSection;
+    return classMatch && (!sameSectionOnly || sectionMatch);
+  });
+
+  const peerMap = new Map();
+  peers.forEach((item) => peerMap.set(item.id, item));
+  peerMap.set(student.id, student);
+
+  return Array.from(peerMap.values())
+    .map((item) => {
+      const subjects = item.id === student.id && subjectsOverride
+        ? subjectsOverride
+        : getStudentTermSubjects(item, currentResultTerm);
+      const score = getResultScore(subjects);
+
+      return {
+        id: item.id,
+        total: score.total,
+        percentage: score.percentage,
+        attendancePercent: Number(item.attendancePercent || 0)
+      };
+    })
+    .sort((a, b) => {
+      if (b.percentage !== a.percentage) return b.percentage - a.percentage;
+      if (b.total !== a.total) return b.total - a.total;
+      return b.attendancePercent - a.attendancePercent;
+    });
+}
+
+function getResultScore(subjects) {
+  let total = 0;
+  let subjectCount = 0;
+
+  subjectsList.forEach((subject) => {
+    const marks = subjects[subject.key] || {};
+    total += Number(marks.classMark || 0);
+    total += Number(marks.quizMark || 0);
+    total += Number(marks.examMark || 0);
+    subjectCount++;
+  });
+
+  const maxMarks = subjectCount * 100;
+  const percentage = maxMarks ? Number(((total / maxMarks) * 100).toFixed(2)) : 0;
+
+  return { total, maxMarks, percentage };
+}
+
+function getRankFromPeers(studentId, peers) {
+  let previous = null;
+  let rank = 0;
+
+  for (let index = 0; index < peers.length; index++) {
+    const peer = peers[index];
+    const sameScore = previous
+      && peer.percentage === previous.percentage
+      && peer.total === previous.total
+      && peer.attendancePercent === previous.attendancePercent;
+
+    if (!sameScore) {
+      rank = index + 1;
+    }
+
+    if (peer.id === studentId) {
+      return rank;
+    }
+
+    previous = peer;
+  }
+
+  return 0;
+}
+
+function formatRank(rank, total) {
+  if (!rank || !total) return "-";
+  return `${rank} / ${total}`;
 }
 
 window.addStudent = async function () {
@@ -2519,14 +3515,38 @@ window.refreshModalResult = function () {
 };
 
 function updateModalSummary(grandTotal, subjectCount) {
-  const maxMarks = subjectCount * 100;
-  const percentage = maxMarks ? ((grandTotal / maxMarks) * 100).toFixed(2) : "0.00";
+  const subjects = collectSubjectsFromModalInputs();
+  const result = calculateResultSummary(subjects, selectedStudentForMarks);
 
-  $("modalTotalMarks").innerText = grandTotal + " / " + maxMarks;
-  $("modalPercentage").innerText = percentage + "%";
-  $("modalGrade").innerText = getGrade(Number(percentage));
-  $("modalStatus").innerText = Number(percentage) >= 33 ? "Passed" : "Failed";
-  $("modalRecommendation").innerText = getRecommendation(Number(percentage));
+  $("modalTotalMarks").innerText = result.total + " / " + result.maxMarks;
+  $("modalPercentage").innerText = result.percentage + "%";
+  $("modalGrade").innerText = result.grade;
+  $("modalGpa").innerText = result.gpa;
+  $("modalStatus").innerText = result.status;
+  $("modalSectionMerit").innerText = result.sectionMerit;
+  $("modalClassRank").innerText = result.classRank;
+  $("modalRecommendation").innerText = result.recommendation;
+}
+
+function collectSubjectsFromModalInputs() {
+  if (currentResultTerm === "yearlyFinal" && selectedStudentForMarks) {
+    return calculateYearlyFinalSubjects(selectedStudentForMarks);
+  }
+
+  const subjects = createEmptySubjects();
+  const inputs = document.querySelectorAll("#modalMarksTable .subjectMark");
+
+  if (!inputs.length && selectedStudentForMarks) {
+    return getStudentTermSubjects(selectedStudentForMarks, currentResultTerm);
+  }
+
+  inputs.forEach((input) => {
+    const subject = input.dataset.subject;
+    const type = input.dataset.type;
+    subjects[subject][type] = Number(input.value || 0);
+  });
+
+  return subjects;
 }
 
 function getResultMarkLabels() {
@@ -3474,7 +4494,7 @@ window.downloadResultPDF = function () {
 
   const student = selectedStudentForMarks;
   const subjects = collectCurrentModalSubjects();
-  const result = calculateResultSummary(subjects);
+  const result = calculateResultSummary(subjects, student);
 
   pdf.setFontSize(16);
   pdf.text("FH School Management System", 14, 16);
@@ -3523,32 +4543,23 @@ window.downloadResultPDF = function () {
   pdf.text("Total Marks: " + result.total + " / " + result.maxMarks, 14, y);
   pdf.text("Percentage: " + result.percentage + "%", 14, y + 7);
   pdf.text("Grade: " + result.grade, 14, y + 14);
+  pdf.text("GPA: " + result.gpa, 70, y + 14);
   pdf.text("Status: " + result.status, 14, y + 21);
+  pdf.text("Section Merit: " + result.sectionMerit, 14, y + 28);
+  pdf.text("Class Rank: " + result.classRank, 70, y + 28);
 
-  pdf.text("Recommendation:", 14, y + 34);
-  pdf.text(pdf.splitTextToSize(result.recommendation, 180), 14, y + 41);
+  pdf.text("Recommendation:", 14, y + 41);
+  pdf.text(pdf.splitTextToSize(result.recommendation, 180), 14, y + 48);
 
   const fileName = `result-card-${currentResultTerm}-${student.roll || student.name || "student"}.pdf`;
   pdf.save(fileName);
 };
 
 function collectCurrentModalSubjects() {
-  if (currentResultTerm === "yearlyFinal" && selectedStudentForMarks) {
-    return calculateYearlyFinalSubjects(selectedStudentForMarks);
-  }
-
-  const subjects = createEmptySubjects();
-
-  document.querySelectorAll("#modalMarksTable .subjectMark").forEach((input) => {
-    const subject = input.dataset.subject;
-    const type = input.dataset.type;
-    subjects[subject][type] = Number(input.value || 0);
-  });
-
-  return subjects;
+  return collectSubjectsFromModalInputs();
 }
 
-function calculateResultSummary(subjects) {
+function calculateResultSummary(subjects, student = null) {
   let total = 0;
   let subjectCount = 0;
 
@@ -3562,13 +4573,19 @@ function calculateResultSummary(subjects) {
 
   const maxMarks = subjectCount * 100;
   const percentage = maxMarks ? Number(((total / maxMarks) * 100).toFixed(2)) : 0;
+  const ranking = student
+    ? calculateStudentRanking(student, subjects)
+    : { sectionMerit: "-", classRank: "-" };
 
   return {
     total,
     maxMarks,
     percentage,
     grade: getGrade(percentage),
+    gpa: getGpa(percentage),
     status: percentage >= 33 ? "Passed" : "Failed",
+    sectionMerit: ranking.sectionMerit,
+    classRank: ranking.classRank,
     recommendation: getRecommendation(percentage)
   };
 }

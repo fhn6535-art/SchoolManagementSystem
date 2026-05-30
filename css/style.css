@@ -265,9 +265,9 @@
       }
     }
 
-    .resultSummary {
+.resultSummary {
   display: grid;
-  grid-template-columns: repeat(4, minmax(140px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   gap: 14px;
   margin-top: 16px;
 }
@@ -386,6 +386,41 @@
   color: #334155;
 }
 
+.homeworkDetails {
+  margin: 6px 0;
+  color: #64748b;
+  white-space: pre-wrap;
+}
+
+.statusBadge {
+  display: inline-block;
+  min-width: 86px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.statusSubmitted {
+  color: #166534;
+  background: #dcfce7;
+}
+
+.statusPending {
+  color: #92400e;
+  background: #fef3c7;
+}
+
+.statusPartial {
+  color: #854d0e;
+  background: #fef08a;
+}
+
+.statusLate {
+  color: #991b1b;
+  background: #fee2e2;
+}
+
 #dashboardNoticeBoard,
 #noticePage .card {
   background: #fffaf0;
@@ -435,7 +470,7 @@
 
 .restoreSummaryGrid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(140px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   gap: 12px;
 }
 

@@ -259,6 +259,131 @@
           </div>
         </div>
 
+        <div id="homeworkPage" style="display:none;">
+          <div class="card" id="homeworkPublishCard">
+            <h3>Publish Homework</h3>
+            <div class="formRow">
+              <select id="homeworkClass"></select>
+              <select id="homeworkSection"></select>
+              <select id="homeworkSubject">
+                <option value="">Select Subject</option>
+                <option>Math</option>
+                <option>English</option>
+                <option>Bangla</option>
+                <option>Science</option>
+                <option>General Knowledge</option>
+                <option>Islamic Education</option>
+              </select>
+              <input id="homeworkTitle" placeholder="Homework Title">
+              <input id="homeworkDeadline" type="date">
+              <input id="homeworkAttachment" placeholder="PDF/Image link optional">
+              <textarea id="homeworkDescription" class="noticeInput" placeholder="Homework details"></textarea>
+              <button onclick="publishHomework()">Publish Homework</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="buttonPanel">
+              <h3 id="homeworkListTitle" style="margin:0;">Homework</h3>
+              <button onclick="loadHomeworkData()">Refresh Homework</button>
+            </div>
+          </div>
+
+          <div class="tableWrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Class</th>
+                  <th>Section</th>
+                  <th>Subject</th>
+                  <th>Title</th>
+                  <th>Deadline</th>
+                  <th>Status</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="homeworkTable"></tbody>
+            </table>
+            <div id="emptyHomework" class="emptyState" style="display:none;">No homework found</div>
+          </div>
+
+          <div class="card" id="homeworkSubmissionCard" style="display:none;">
+            <h3 id="homeworkSubmissionTitle">Homework Submissions</h3>
+            <div class="tableWrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Student</th>
+                    <th>Roll</th>
+                    <th>Status</th>
+                    <th>Submission</th>
+                    <th>Submitted At</th>
+                  </tr>
+                </thead>
+                <tbody id="homeworkSubmissionTable"></tbody>
+              </table>
+              <div id="emptyHomeworkSubmissions" class="emptyState" style="display:none;">No submissions found</div>
+            </div>
+          </div>
+        </div>
+
+        <div id="feesPage" style="display:none;">
+          <div class="card" id="feeCreateCard">
+            <h3>Generate Student Fees</h3>
+            <p style="margin-top:0;color:#64748b;">
+              Create fee records for all students in a selected class and section.
+            </p>
+            <div class="formRow">
+              <select id="feeClass"></select>
+              <select id="feeSection"></select>
+              <input id="feeType" placeholder="Fee Type e.g. Monthly Fee">
+              <input id="feeMonth" type="month">
+              <input id="feeAmount" type="number" min="0" placeholder="Amount">
+              <input id="feeDueDate" type="date">
+              <button onclick="generateFees()">Generate Fees</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="buttonPanel">
+              <h3 id="feeListTitle" style="margin:0;">Fees</h3>
+              <div class="formRow" style="margin:0;">
+                <input id="feeSearch" placeholder="Search fee, student, class" onkeyup="renderFees()">
+                <select id="feeStatusFilter" onchange="renderFees()">
+                  <option value="all">All Status</option>
+                  <option value="Due">Due</option>
+                  <option value="Partial">Partial</option>
+                  <option value="Paid">Paid</option>
+                  <option value="Overdue">Overdue</option>
+                </select>
+                <button onclick="loadFeeRecords()">Refresh Fees</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="tableWrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Student</th>
+                  <th>Class</th>
+                  <th>Section</th>
+                  <th>Fee Type</th>
+                  <th>Month</th>
+                  <th>Total</th>
+                  <th>Paid</th>
+                  <th>Due</th>
+                  <th>Due Date</th>
+                  <th>Status</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="feeTable"></tbody>
+            </table>
+            <div id="emptyFees" class="emptyState" style="display:none;">No fee records found</div>
+          </div>
+        </div>
+
         <div id="backupPage" style="display:none;">
           <div class="card">
             <h3>Backup & Restore</h3>
@@ -335,6 +460,8 @@
                 <option value="attendance">Attendance</option>
                 <option value="marks">Marks/Result</option>
                 <option value="notice">Notice</option>
+                <option value="homework">Homework</option>
+                <option value="fees">Fees</option>
                 <option value="teacher">Teacher</option>
                 <option value="backup">Backup/Restore</option>
               </select>
