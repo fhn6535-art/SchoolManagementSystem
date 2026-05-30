@@ -1548,9 +1548,13 @@ function getFeeActionButtons(fee, status) {
   const paidButton = status === "Paid"
     ? ""
     : `<button class="actionBtn editBtn" onclick="addFeePayment('${fee.id}')">Add Payment</button>`;
+  const reminderButton = status === "Paid"
+    ? ""
+    : `<button class="actionBtn" onclick="sendFeeWhatsAppReminder('${fee.id}')">WhatsApp Reminder</button>`;
 
   return `
     ${paidButton}
+    ${reminderButton}
     <button class="actionBtn" onclick="viewFeePaymentHistory('${fee.id}')">History</button>
     <button class="actionBtn deleteBtn" onclick="deleteFeeRecord('${fee.id}')">Delete</button>
   `;
@@ -1627,6 +1631,43 @@ window.addFeePayment = async function (feeId) {
 };
 
 window.markFeePaid = window.addFeePayment;
+
+window.sendFeeWhatsAppReminder = async function (feeId) {
+  if (currentRole !== "admin") {
+    alert("Only admin can send fee reminders");
+    return;
+  }
+
+  const fee = allFeeRecords.find((item) => item.id === feeId);
+
+  if (!fee) {
+    alert("Fee record not found");
+    return;
+  }
+
+  const student = getStudentForFee(fee);
+  const phone = student?.guardianPhone || student?.emergencyContact || "";
+  const whatsappPhone = formatWhatsAppPhone(phone);
+
+  if (!whatsappPhone) {
+    alert("Guardian phone not found for this student");
+    return;
+  }
+
+  const summary = getFeeSummary(fee);
+  const message = buildFeeReminderMessage(fee, student, summary);
+  const url = `https://wa.me/${whatsappPhone}?text=${encodeURIComponent(message)}`;
+
+  window.open(url, "_blank");
+
+  await addActivityLog("Fee WhatsApp Reminder Opened", {
+    feeId,
+    studentName: fee.studentName || student?.name || "-",
+    guardianPhone: phone,
+    dueAmount: summary.dueAmount,
+    feeType: fee.feeType || "-"
+  });
+};
 
 window.viewFeePaymentHistory = function (feeId) {
   const fee = allFeeRecords.find((item) => item.id === feeId);
@@ -1727,6 +1768,58 @@ function getPaymentHistory(fee) {
   }
 
   return [];
+}
+
+function getStudentForFee(fee) {
+  return allData.find((student) =>
+    student.id === fee.studentDocId
+    || normalizeText(student.studentId) === normalizeText(fee.studentId)
+    || normalizeText(student.studentEmail) === normalizeText(fee.studentId)
+  ) || null;
+}
+
+function formatWhatsAppPhone(phone) {
+  let digits = String(phone || "").replace(/\D/g, "");
+
+  if (!digits) return "";
+
+  if (digits.startsWith("00")) {
+    digits = digits.slice(2);
+  }
+
+  if (digits.length === 11 && digits.startsWith("01")) {
+    return "88" + digits;
+  }
+
+  if (digits.length === 10 && digits.startsWith("1")) {
+    return "880" + digits;
+  }
+
+  return digits;
+}
+
+function buildFeeReminderMessage(fee, student, summary) {
+  const studentName = fee.studentName || student?.name || "your child";
+  const guardianName = student?.fatherName || student?.motherName || "Guardian";
+  const feeType = fee.feeType || "School Fee";
+  const month = fee.feeMonth || "-";
+  const dueDate = fee.dueDate || "-";
+  const dueAmount = formatMoney(summary.dueAmount);
+  const paidAmount = formatMoney(summary.paidAmount);
+  const totalAmount = formatMoney(summary.totalAmount);
+
+  return [
+    `Dear ${guardianName},`,
+    `This is a reminder from FH School Management System.`,
+    `Student: ${studentName}`,
+    `Fee: ${feeType}`,
+    `Month: ${month}`,
+    `Total: ${totalAmount}`,
+    `Paid: ${paidAmount}`,
+    `Due: ${dueAmount}`,
+    `Due Date: ${dueDate}`,
+    `Please clear the due amount as soon as possible.`
+  ].join("\n");
 }
 
 function normalizeFeeType(value) {
