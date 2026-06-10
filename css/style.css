@@ -143,6 +143,25 @@
       margin: 8px 0 0;
     }
 
+    .dashboardGrid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(320px, 1fr));
+      gap: 16px;
+      margin-top: 16px;
+    }
+
+    .dashboardPanel {
+      min-width: 0;
+    }
+
+    .dashboardPanel h3 {
+      margin-top: 0;
+    }
+
+    .dashboardPanel table {
+      font-size: 14px;
+    }
+
     .formRow,
     .filterRow {
       display: flex;
@@ -181,12 +200,45 @@
       flex-wrap: wrap;
     }
 
+    .attendanceHeader {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    .attendanceReportActions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .attendanceControls {
+      align-items: center;
+      margin-bottom: 0;
+    }
+
+    .attendanceControls select,
+    .attendanceControls input {
+      min-width: 185px;
+      flex: 1 1 185px;
+    }
+
+    .attendanceControls button {
+      min-width: 150px;
+      flex: 0 0 auto;
+    }
+
     .profileBox {
+      position: relative;
       background: #f8fafc;
       border: 1px solid #eef1f4;
       border-radius: 10px;
-      padding: 12px 16px;
+      padding: 12px 190px 12px 16px;
       margin-bottom: 14px;
+      min-height: 210px;
     }
 
     .marksInput {
@@ -253,6 +305,14 @@
     @media (max-width: 768px) {
       .layout { flex-direction: column; }
       .sidebar { width: 100%; }
+      .profileBox {
+        padding: 12px 16px;
+      }
+      .studentPhotoCard {
+        position: static;
+        margin: 0 0 14px;
+        width: 140px;
+      }
       .formRow input,
       .filterRow input {
         width: 100%;
@@ -262,6 +322,24 @@
       }
       .buttonPanel button {
         width: 100%;
+      }
+      .dashboardGrid {
+        grid-template-columns: 1fr;
+      }
+      .attendanceHeader {
+        align-items: stretch;
+        flex-direction: column;
+      }
+      .attendanceReportActions,
+      .attendanceReportActions button,
+      .attendanceControls button {
+        width: 100%;
+      }
+      .attendanceControls select,
+      .attendanceControls input {
+        width: 100%;
+        min-width: 0;
+        flex-basis: 100%;
       }
     }
 
@@ -392,6 +470,103 @@
   white-space: pre-wrap;
 }
 
+.documentLinks {
+  margin-top: 10px;
+}
+
+.documentLinks p {
+  margin: 8px 0;
+}
+
+.studentPhotoCard {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 140px;
+  text-align: center;
+}
+
+.studentProfilePhoto {
+  display: block;
+  width: 140px;
+  height: 160px;
+  object-fit: cover;
+  border-radius: 10px;
+  border: 1px solid #cbd5e1;
+  margin: 0 auto 8px;
+  background: #f8fafc;
+}
+
+.studentPhotoCaption {
+  font-weight: 800;
+  color: #1e293b;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.studentDocumentMeta {
+  margin-top: 10px;
+}
+
+.admissionThumb {
+  width: 58px;
+  height: 68px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  margin-bottom: 8px;
+}
+
+.photoPreview {
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.photoPreview img {
+  width: 70px;
+  height: 82px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+}
+
+.photoModalBox {
+  width: min(560px, 100%);
+}
+
+.photoCaptureArea {
+  background: #0f172a;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.photoCaptureArea video {
+  display: block;
+  width: 100%;
+  max-height: 420px;
+  object-fit: cover;
+}
+
+.documentLinkRow {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.documentLinkRow a {
+  display: inline-block;
+  padding: 7px 10px;
+  border-radius: 8px;
+  background: #e0f2fe;
+  color: #075985;
+  font-weight: 700;
+  text-decoration: none;
+}
+
 .statusBadge {
   display: inline-block;
   min-width: 86px;
@@ -419,6 +594,11 @@
 .statusLate {
   color: #991b1b;
   background: #fee2e2;
+}
+
+.statusChecked {
+  color: #1e3a8a;
+  background: #dbeafe;
 }
 
 #dashboardNoticeBoard,

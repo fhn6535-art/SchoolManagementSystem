@@ -69,18 +69,24 @@ const classOptions = [
 const sectionOptions = ["A", "B", "C"];
 const backupCollectionNames = [
   "students",
+  "admissions",
   "attendanceRecords",
+  "subjectAttendanceRecords",
   "notices",
   "users",
+  "messages",
+  "messageReads",
   "homeworks",
   "homeworkSubmissions",
-  "feeRecords"
+  "feeRecords",
+  "routineRecords"
 ];
 
 let allData = [];
 let filteredData = [];
 let attendanceStudents = [];
 let monthlyAttendanceData = [];
+let subjectAttendanceReportData = [];
 let currentRole = "";
 let currentStudentId = "";
 let currentDisplayName = "";
@@ -93,11 +99,17 @@ let unsubscribeNotices = null;
 let studentKeyBackfillDone = false;
 let attendanceRecordBackfillDone = false;
 let allNotices = [];
+let allMessages = [];
+let allMessageReads = [];
 let activityLogs = [];
 let filteredActivityLogs = [];
 let allHomeworks = [];
 let allHomeworkSubmissions = [];
 let allFeeRecords = [];
+let allRoutineRecords = [];
+let allAdmissions = [];
+let photoCaptureStream = null;
+let currentPhotoTarget = "";
 
 const $ = (id) => document.getElementById(id);
 
@@ -119,16 +131,28 @@ function setupClassSectionDropdowns() {
 
   setSelectOptions("studentClass", classOptions, "Select Class");
   setSelectOptions("section", sectionOptions, "Select Section");
+  setSelectOptions("admissionClass", classOptions, "Select Class");
+  setSelectOptions("admissionSection", sectionOptions, "Select Section");
   setSelectOptions("filterClass", classOptions, "All Classes");
   setSelectOptions("filterSection", sectionOptions, "All Sections");
   setSelectOptions("attendanceClass", classOptions, "Select Class");
   setSelectOptions("attendanceSection", sectionOptions, "Select Section");
+  setSelectOptions("attendanceSubject", subjectsList.map((subject) => subject.label), "Select Subject");
   setSelectOptions("reportClass", classOptions, "All Classes");
   setSelectOptions("reportSection", sectionOptions, "All Sections");
+  setSelectOptions("subjectReportClass", classOptions, "All Classes");
+  setSelectOptions("subjectReportSection", sectionOptions, "All Sections");
+  setSelectOptions("subjectReportSubject", subjectsList.map((subject) => subject.label), "All Subjects");
   setSelectOptions("homeworkClass", classOptions, "Select Class");
   setSelectOptions("homeworkSection", sectionOptions, "Select Section");
+  setSelectOptions("messageClass", classOptions, "Select Class");
+  setSelectOptions("messageSection", sectionOptions, "Select Section");
   setSelectOptions("feeClass", classOptions, "Select Class");
   setSelectOptions("feeSection", sectionOptions, "Select Section");
+  setSelectOptions("routineClass", classOptions, "Select Class");
+  setSelectOptions("routineSection", sectionOptions, "Select Section");
+  setSelectOptions("routineFilterClass", classOptions, "All Classes");
+  setSelectOptions("routineFilterSection", sectionOptions, "All Sections");
   applyTeacherScopedDropdowns();
 }
 
@@ -153,15 +177,25 @@ function applyTeacherScopedDropdowns() {
 
   setSelectOptions("attendanceClass", assignedClasses, "Select Assigned Class");
   setSelectOptions("reportClass", assignedClasses, "All Assigned Classes");
+  setSelectOptions("subjectReportClass", assignedClasses, "All Assigned Classes");
   setSelectOptions("homeworkClass", assignedClasses, "Select Assigned Class");
+  setSelectOptions("messageClass", assignedClasses, "Select Assigned Class");
+  setSelectOptions("routineClass", assignedClasses, "Select Assigned Class");
+  setSelectOptions("routineFilterClass", assignedClasses, "All Assigned Classes");
 
   ensureTeacherAttendanceSelection();
   updateTeacherSectionDropdown("reportClass", "reportSection", "All Assigned Sections");
+  updateTeacherSectionDropdown("subjectReportClass", "subjectReportSection", "All Assigned Sections");
   updateTeacherSectionDropdown("homeworkClass", "homeworkSection", "Select Assigned Section");
+  updateTeacherSectionDropdown("messageClass", "messageSection", "Select Assigned Section");
+  updateTeacherSectionDropdown("routineClass", "routineSection", "Select Assigned Section");
+  updateTeacherSectionDropdown("routineFilterClass", "routineFilterSection", "All Assigned Sections");
 
   const attendanceClassSelect = $("attendanceClass");
   const reportClassSelect = $("reportClass");
+  const subjectReportClassSelect = $("subjectReportClass");
   const homeworkClassSelect = $("homeworkClass");
+  const messageClassSelect = $("messageClass");
 
   if (attendanceClassSelect) {
     attendanceClassSelect.onchange = () => {
@@ -179,12 +213,57 @@ function applyTeacherScopedDropdowns() {
     };
   }
 
+  if (subjectReportClassSelect) {
+    subjectReportClassSelect.onchange = () => {
+      updateTeacherSectionDropdown("subjectReportClass", "subjectReportSection", "All Assigned Sections", false);
+      subjectAttendanceReportData = [];
+      updateSubjectReportSubtitle();
+      renderSubjectAttendanceReport(subjectAttendanceReportData);
+    };
+  }
+
   if (homeworkClassSelect) {
     homeworkClassSelect.onchange = () => {
       updateTeacherSectionDropdown("homeworkClass", "homeworkSection", "Select Assigned Section", true);
     };
   }
+
+  if (messageClassSelect) {
+    messageClassSelect.onchange = () => {
+      updateTeacherSectionDropdown("messageClass", "messageSection", "Select Assigned Section", true);
+    };
+  }
+
+  const routineClassSelect = $("routineClass");
+  if (routineClassSelect) {
+    routineClassSelect.onchange = () => {
+      updateTeacherSectionDropdown("routineClass", "routineSection", "Select Assigned Section", true);
+    };
+  }
+
+  const routineFilterClassSelect = $("routineFilterClass");
+  if (routineFilterClassSelect) {
+    routineFilterClassSelect.onchange = () => {
+      updateTeacherSectionDropdown("routineFilterClass", "routineFilterSection", "All Assigned Sections", false);
+      renderRoutineRecords();
+    };
+  }
 }
+
+window.updateAttendanceFormMode = function () {
+  const type = $("attendanceType")?.value || "daily";
+  const isSubjectAttendance = type === "subject";
+
+  if ($("attendanceSubject")) {
+    $("attendanceSubject").style.display = isSubjectAttendance ? "inline-block" : "none";
+  }
+
+  if ($("attendancePeriod")) {
+    $("attendancePeriod").style.display = isSubjectAttendance ? "inline-block" : "none";
+  }
+
+  clearAttendanceSheet();
+};
 
 function ensureTeacherAttendanceSelection() {
   if (currentRole !== "teacher" || !currentTeacherAssignments.length) return;
@@ -331,7 +410,7 @@ onAuthStateChanged(auth, async (user) => {
     const userData = userSnap.data();
 
     currentRole = userData.role || "";
-    currentStudentId = userData.studentId || user.email;
+    currentStudentId = userData.studentId || userData.childStudentId || userData.childEmail || user.email;
     currentDisplayName = userData.name || user.email;
     currentTeacherAssignments = normalizeTeacherAssignments(userData);
 
@@ -355,12 +434,14 @@ function setupRoleUI(displayName) {
       <h2>Admin Panel</h2><hr>
       <p data-page="dashboard" onclick="showPage('dashboard')">Dashboard</p>
       <p data-page="students" onclick="showPage('students')">Students</p>
+      <p data-page="admission" onclick="showPage('admission')">Admissions</p>
       <p data-page="teachers" onclick="showPage('teachers')">Teachers</p>
       <p data-page="notices" onclick="showPage('notices')">Notice Board</p>
+      <p data-page="messages" onclick="showPage('messages')">Messages</p>
       <p data-page="homework" onclick="showPage('homework')">Homework</p>
       <p data-page="fees" onclick="showPage('fees')">Fees</p>
+      <p data-page="routine" onclick="showPage('routine')">Routine</p>
       <p data-page="attendance" onclick="showPage('attendance')">Attendance</p>
-      <p data-page="monthlyReport" onclick="showPage('monthlyReport')">Monthly Report</p>
       <p data-page="backup" onclick="showPage('backup')">Backup</p>
       <p data-page="activityLog" onclick="showPage('activityLog')">Activity Log</p>
       <p onclick="logout()">Logout</p>
@@ -379,9 +460,10 @@ function setupRoleUI(displayName) {
       <p data-page="dashboard" onclick="showPage('dashboard')">Dashboard</p>
       <p data-page="students" onclick="showPage('students')">Students</p>
       <p data-page="notices" onclick="showPage('notices')">Notice Board</p>
+      <p data-page="messages" onclick="showPage('messages')">Messages</p>
       <p data-page="homework" onclick="showPage('homework')">Homework</p>
+      <p data-page="routine" onclick="showPage('routine')">Routine</p>
       <p data-page="attendance" onclick="showPage('attendance')">Attendance</p>
-      <p data-page="monthlyReport" onclick="showPage('monthlyReport')">Monthly Report</p>
       <p onclick="logout()">Logout</p>
     `;
 
@@ -398,8 +480,29 @@ function setupRoleUI(displayName) {
       <h2>Student Panel</h2><hr>
       <p data-page="dashboard" onclick="showPage('dashboard')">My Dashboard</p>
       <p data-page="students" onclick="showPage('students')">My Record</p>
+      <p data-page="messages" onclick="showPage('messages')">Messages</p>
       <p data-page="homework" onclick="showPage('homework')">My Homework</p>
+      <p data-page="routine" onclick="showPage('routine')">My Routine</p>
       <p data-page="fees" onclick="showPage('fees')">My Fees</p>
+      <p onclick="logout()">Logout</p>
+    `;
+
+    hide("addStudentBtn");
+    hide("csvBtn");
+    showPage("dashboard");
+    return;
+  }
+
+  if (currentRole === "parent") {
+    $("welcomeText").innerText = "Welcome " + displayName;
+    $("sidebarMenu").innerHTML = `
+      <h2>Parent Panel</h2><hr>
+      <p data-page="dashboard" onclick="showPage('dashboard')">Child Dashboard</p>
+      <p data-page="students" onclick="showPage('students')">Child Record</p>
+      <p data-page="messages" onclick="showPage('messages')">Messages</p>
+      <p data-page="homework" onclick="showPage('homework')">Child Homework</p>
+      <p data-page="routine" onclick="showPage('routine')">Child Routine</p>
+      <p data-page="fees" onclick="showPage('fees')">Fee Status</p>
       <p onclick="logout()">Logout</p>
     `;
 
@@ -418,26 +521,32 @@ window.showPage = function (page) {
 
   hide("dashboardPage");
   hide("studentsPage");
+  hide("admissionPage");
   hide("noticePage");
+  hide("messagesPage");
   hide("homeworkPage");
   hide("feesPage");
+  hide("routinePage");
   hide("backupPage");
   hide("activityLogPage");
   hide("teachersPage");
   hide("attendancePage");
   hide("monthlyReportPage");
+  hide("subjectReportPage");
   closeStudentModal();
 
   if (page === "dashboard") {
     show("dashboardPage");
     renderTeacherProfileCard();
+    renderDashboardAnalytics(allData);
+    loadDashboardFeeAnalytics();
     return;
   }
 
   if (page === "students") {
     show("studentsPage");
 
-    if (currentRole === "student") {
+    if (currentRole === "student" || currentRole === "parent") {
       hide("studentButtons");
       hide("addStudentArea");
       show("allStudentsArea");
@@ -466,6 +575,7 @@ window.showPage = function (page) {
     }
 
     show("attendancePage");
+    updateAttendanceFormMode();
     if (currentRole === "teacher") {
       ensureTeacherAttendanceSelection();
     }
@@ -473,6 +583,18 @@ window.showPage = function (page) {
       $("attendanceDate").value = getTodayParts().date;
     }
     clearAttendanceSheet();
+    return;
+  }
+
+  if (page === "admission") {
+    if (currentRole !== "admin") {
+      alert("Only admin can manage admissions");
+      showPage("dashboard");
+      return;
+    }
+
+    show("admissionPage");
+    loadAdmissions();
     return;
   }
 
@@ -489,7 +611,7 @@ window.showPage = function (page) {
   }
 
   if (page === "homework") {
-    if (!["admin", "teacher", "student"].includes(currentRole)) {
+    if (!["admin", "teacher", "student", "parent"].includes(currentRole)) {
       alert("You do not have permission");
       showPage("dashboard");
       return;
@@ -501,9 +623,22 @@ window.showPage = function (page) {
     return;
   }
 
+  if (page === "messages") {
+    if (!["admin", "teacher", "student", "parent"].includes(currentRole)) {
+      alert("You do not have permission");
+      showPage("dashboard");
+      return;
+    }
+
+    show("messagesPage");
+    setupMessagesPageForRole();
+    loadMessages();
+    return;
+  }
+
   if (page === "fees") {
-    if (currentRole !== "admin" && currentRole !== "student") {
-      alert("Only admin and student can access fees");
+    if (currentRole !== "admin" && currentRole !== "student" && currentRole !== "parent") {
+      alert("Only admin, student, and parent can access fees");
       showPage("dashboard");
       return;
     }
@@ -511,6 +646,19 @@ window.showPage = function (page) {
     show("feesPage");
     setupFeesPageForRole();
     loadFeeRecords();
+    return;
+  }
+
+  if (page === "routine") {
+    if (!["admin", "teacher", "student", "parent"].includes(currentRole)) {
+      alert("You do not have permission");
+      showPage("dashboard");
+      return;
+    }
+
+    show("routinePage");
+    setupRoutinePageForRole();
+    loadRoutineRecords();
     return;
   }
 
@@ -568,6 +716,28 @@ window.showPage = function (page) {
     updateMonthlyReportSubtitle();
     renderMonthlyReport(monthlyAttendanceData);
 
+    return;
+  }
+
+  if (page === "subjectReport") {
+    if (currentRole !== "admin" && currentRole !== "teacher") {
+      alert("You do not have permission");
+      showPage("dashboard");
+      return;
+    }
+
+    show("subjectReportPage");
+
+    if (currentRole === "teacher") {
+      applyTeacherScopedDropdowns();
+    }
+
+    if (!$("subjectReportMonth").value) {
+      $("subjectReportMonth").value = getTodayParts().month;
+    }
+
+    updateSubjectReportSubtitle();
+    renderSubjectAttendanceReport(subjectAttendanceReportData);
     return;
   }
 };
@@ -802,7 +972,7 @@ function loadNotices() {
 function getVisibleNotices() {
   return allNotices.filter((notice) => {
     if (notice.audience === "all") return true;
-    if (notice.audience === "students" && currentRole === "student") return true;
+    if (notice.audience === "students" && (currentRole === "student" || currentRole === "parent")) return true;
     if (notice.audience === "teachers" && currentRole === "teacher") return true;
     return currentRole === "admin";
   });
@@ -927,11 +1097,677 @@ window.deleteNotice = async function (id) {
   }
 };
 
+window.loadAdmissions = async function () {
+  if (currentRole !== "admin") {
+    alert("Only admin can manage admissions");
+    return;
+  }
+
+  try {
+    allAdmissions = await getCollectionRows("admissions");
+    allAdmissions.sort((a, b) => Number(b.createdAtMillis || 0) - Number(a.createdAtMillis || 0));
+    renderAdmissions();
+  } catch (error) {
+    alert("Admission load failed: " + error.message);
+  }
+};
+
+window.submitAdmission = async function () {
+  if (currentRole !== "admin") {
+    alert("Only admin can create admissions");
+    return;
+  }
+
+  const admission = getAdmissionFormData();
+
+  if (!admission.name || !admission.className || !admission.section || !admission.roll || !admission.studentEmail) {
+    alert("Fill student name, class, section, roll, and email");
+    return;
+  }
+
+  try {
+    const duplicateRoll = await studentRollExists(admission.className, admission.section, admission.roll);
+
+    if (duplicateRoll) {
+      alert("This roll already exists in the selected class and section");
+      return;
+    }
+
+    const docRef = await addDoc(collection(db, "admissions"), {
+      ...admission,
+      status: "Pending",
+      createdBy: auth.currentUser?.uid || "",
+      createdByName: currentDisplayName || "Admin",
+      createdAtMillis: Date.now(),
+      createdAt: serverTimestamp()
+    });
+
+    await addActivityLog("Admission Created", {
+      admissionId: docRef.id,
+      name: admission.name,
+      className: admission.className,
+      section: admission.section,
+      roll: admission.roll
+    });
+
+    clearAdmissionForm();
+    await loadAdmissions();
+    alert("Admission application saved");
+  } catch (error) {
+    alert("Admission save failed: " + error.message);
+  }
+};
+
+function getAdmissionFormData() {
+  return {
+    name: $("admissionName")?.value.trim() || "",
+    className: $("admissionClass")?.value.trim() || "",
+    section: $("admissionSection")?.value.trim() || "",
+    roll: $("admissionRoll")?.value.trim() || "",
+    studentEmail: $("admissionEmail")?.value.trim() || "",
+    studentId: $("admissionEmail")?.value.trim() || "",
+    fatherName: $("admissionFather")?.value.trim() || "",
+    motherName: $("admissionMother")?.value.trim() || "",
+    guardianPhone: $("admissionGuardianPhone")?.value.trim() || "",
+    emergencyContact: $("admissionEmergency")?.value.trim() || "",
+    bloodGroup: $("admissionBloodGroup")?.value.trim() || "",
+    address: $("admissionAddress")?.value.trim() || "",
+    previousSchool: $("admissionPreviousSchool")?.value.trim() || "",
+    notes: $("admissionNotes")?.value.trim() || "",
+    documents: {
+      photoUrl: $("admissionPhotoUrl")?.value.trim() || "",
+      photoDataUrl: $("admissionPhotoDataUrl")?.value || "",
+      birthCertificateUrl: $("admissionBirthCertificateUrl")?.value.trim() || "",
+      transferCertificateUrl: $("admissionTransferCertificateUrl")?.value.trim() || ""
+    }
+  };
+}
+
+function clearAdmissionForm() {
+  [
+    "admissionName",
+    "admissionClass",
+    "admissionSection",
+    "admissionRoll",
+    "admissionEmail",
+    "admissionFather",
+    "admissionMother",
+    "admissionGuardianPhone",
+    "admissionEmergency",
+    "admissionBloodGroup",
+    "admissionAddress",
+    "admissionPreviousSchool",
+    "admissionPhotoUrl",
+    "admissionPhotoDataUrl",
+    "admissionBirthCertificateUrl",
+    "admissionTransferCertificateUrl",
+    "admissionNotes"
+  ].forEach((id) => {
+    const element = $(id);
+    if (element) element.value = "";
+  });
+
+  clearPhotoPreview("admission");
+}
+
+window.renderAdmissions = function () {
+  const table = $("admissionTable");
+  const empty = $("emptyAdmissions");
+  if (!table || !empty) return;
+
+  const statusFilter = $("admissionStatusFilter")?.value || "all";
+  const admissions = allAdmissions.filter((admission) =>
+    statusFilter === "all" ? true : admission.status === statusFilter
+  );
+
+  table.innerHTML = "";
+  empty.style.display = admissions.length ? "none" : "block";
+
+  admissions.forEach((admission) => {
+    const row = document.createElement("tr");
+
+    row.innerHTML = `
+      <td>
+        <b>${escapeHtml(admission.name || "-")}</b><br>
+        ${escapeHtml(admission.studentEmail || "-")}
+      </td>
+      <td>${escapeHtml(getDisplayClassName(admission.className) || "-")}<br>Section ${escapeHtml(admission.section || "-")}</td>
+      <td>${escapeHtml(admission.roll || "-")}</td>
+      <td>
+        ${escapeHtml(admission.guardianPhone || "-")}<br>
+        ${escapeHtml(admission.fatherName || admission.motherName || "-")}
+      </td>
+      <td>${getAdmissionDocumentLinks(admission)}</td>
+      <td><span class="statusBadge ${getAdmissionStatusClass(admission.status)}">${escapeHtml(admission.status || "Pending")}</span></td>
+      <td>${getAdmissionActionButtons(admission)}</td>
+    `;
+
+    table.appendChild(row);
+  });
+};
+
+function getAdmissionDocumentLinks(admission) {
+  const documents = admission.documents || {};
+  const capturedPhoto = documents.photoDataUrl
+    ? `<img class="admissionThumb" src="${escapeHtml(documents.photoDataUrl)}" alt="Captured photo">`
+    : "";
+  const links = [
+    { label: "Photo", url: documents.photoUrl },
+    { label: "Birth", url: documents.birthCertificateUrl },
+    { label: "Transfer", url: documents.transferCertificateUrl }
+  ].filter((item) => item.url);
+
+  if (!capturedPhoto && !links.length) return "-";
+
+  return `
+    ${capturedPhoto}
+    <div class="documentLinkRow">
+      ${links.map((item) =>
+        `<a href="${escapeHtml(item.url)}" target="_blank" rel="noopener">${escapeHtml(item.label)}</a>`
+      ).join("")}
+    </div>
+  `;
+}
+
+function getAdmissionStatusClass(status) {
+  if (status === "Approved") return "statusSubmitted";
+  if (status === "Rejected") return "statusLate";
+  return "statusPending";
+}
+
+function getAdmissionActionButtons(admission) {
+  const buttons = [];
+
+  if (admission.status !== "Approved") {
+    buttons.push(`<button class="actionBtn editBtn" onclick="approveAdmission('${admission.id}')">Approve</button>`);
+  }
+
+  if (admission.status !== "Rejected") {
+    buttons.push(`<button class="actionBtn" onclick="rejectAdmission('${admission.id}')">Reject</button>`);
+  }
+
+  buttons.push(`<button class="actionBtn deleteBtn" onclick="deleteAdmission('${admission.id}')">Delete</button>`);
+
+  return buttons.join(" ");
+}
+
+window.approveAdmission = async function (admissionId) {
+  if (currentRole !== "admin") {
+    alert("Only admin can approve admissions");
+    return;
+  }
+
+  const admission = allAdmissions.find((item) => item.id === admissionId);
+
+  if (!admission) {
+    alert("Admission not found");
+    return;
+  }
+
+  if (admission.status === "Approved" && admission.studentDocId) {
+    alert("This admission is already approved");
+    return;
+  }
+
+  if (!confirm("Approve this admission and create student profile?")) return;
+
+  try {
+    const duplicateRoll = await studentRollExists(admission.className, admission.section, admission.roll);
+
+    if (duplicateRoll) {
+      alert("Cannot approve. This roll already exists in the selected class and section");
+      return;
+    }
+
+    const studentRef = await addDoc(collection(db, "students"), buildStudentDataFromAdmission(admission));
+
+    await updateDoc(doc(db, "admissions", admissionId), {
+      status: "Approved",
+      studentDocId: studentRef.id,
+      approvedBy: auth.currentUser?.uid || "",
+      approvedAtMillis: Date.now(),
+      approvedAt: serverTimestamp()
+    });
+
+    await addActivityLog("Admission Approved", {
+      admissionId,
+      studentId: studentRef.id,
+      name: admission.name,
+      className: admission.className,
+      section: admission.section,
+      roll: admission.roll
+    });
+
+    await loadAdmissions();
+    alert("Admission approved and student profile created");
+  } catch (error) {
+    alert("Admission approve failed: " + error.message);
+  }
+};
+
+function buildStudentDataFromAdmission(admission) {
+  return {
+    name: admission.name || "",
+    className: admission.className || "",
+    section: admission.section || "",
+    classSection: getClassSectionValue(admission.className, admission.section),
+    roll: admission.roll || "",
+    rollKey: normalizeRoll(admission.roll),
+    studentEmail: admission.studentEmail || "",
+    studentId: admission.studentId || admission.studentEmail || "",
+    fatherName: admission.fatherName || "",
+    motherName: admission.motherName || "",
+    guardianPhone: admission.guardianPhone || "",
+    emergencyContact: admission.emergencyContact || "",
+    bloodGroup: admission.bloodGroup || "",
+    address: admission.address || "",
+    previousSchool: admission.previousSchool || "",
+    documents: admission.documents || {},
+    admissionId: admission.id,
+    marks: 0,
+    attendance: "Present",
+    attendancePercent: 0,
+    subjects: createEmptySubjects(),
+    createdAt: new Date().toISOString()
+  };
+}
+
+window.rejectAdmission = async function (admissionId) {
+  if (currentRole !== "admin") {
+    alert("Only admin can reject admissions");
+    return;
+  }
+
+  const reason = prompt("Reject reason optional", "");
+  if (reason === null) return;
+
+  try {
+    await updateDoc(doc(db, "admissions", admissionId), {
+      status: "Rejected",
+      rejectReason: reason.trim(),
+      rejectedBy: auth.currentUser?.uid || "",
+      rejectedAtMillis: Date.now(),
+      rejectedAt: serverTimestamp()
+    });
+
+    await addActivityLog("Admission Rejected", { admissionId, reason: reason.trim() });
+    await loadAdmissions();
+  } catch (error) {
+    alert("Admission reject failed: " + error.message);
+  }
+};
+
+window.deleteAdmission = async function (admissionId) {
+  if (currentRole !== "admin") {
+    alert("Only admin can delete admissions");
+    return;
+  }
+
+  if (!confirm("Delete this admission application? Student profile will not be deleted.")) return;
+
+  try {
+    await deleteDoc(doc(db, "admissions", admissionId));
+    await addActivityLog("Admission Deleted", { admissionId });
+    await loadAdmissions();
+  } catch (error) {
+    alert("Admission delete failed: " + error.message);
+  }
+};
+
+function setupMessagesPageForRole() {
+  const canSend = currentRole === "admin" || currentRole === "teacher";
+
+  if (canSend) {
+    show("messageCreateCard");
+    $("messageListTitle").innerText = "Messages";
+
+    if (currentRole === "teacher") {
+      applyTeacherScopedDropdowns();
+
+      const classSelect = $("messageClass");
+      if (classSelect && !classSelect.value && currentTeacherAssignments.length) {
+        classSelect.value = currentTeacherAssignments[0].classNameRaw;
+        updateTeacherSectionDropdown("messageClass", "messageSection", "Select Assigned Section", true);
+      }
+    }
+  } else {
+    hide("messageCreateCard");
+    $("messageListTitle").innerText = currentRole === "parent" ? "Child Messages" : "My Messages";
+  }
+
+  updateMessageTargetMode();
+}
+
+window.updateMessageTargetMode = function () {
+  const targetType = $("messageTarget")?.value || "all";
+  const needsClassSection = targetType === "classSection";
+  const needsStudent = targetType === "student";
+
+  if ($("messageClass")) $("messageClass").style.display = needsClassSection ? "inline-block" : "none";
+  if ($("messageSection")) $("messageSection").style.display = needsClassSection ? "inline-block" : "none";
+  if ($("messageStudentId")) $("messageStudentId").style.display = needsStudent ? "inline-block" : "none";
+};
+
+window.loadMessages = async function () {
+  try {
+    const [messages, reads] = await Promise.all([
+      loadScopedMessages(),
+      loadMessageReads()
+    ]);
+
+    allMessages = messages.sort((a, b) =>
+      Number(b.createdAtMillis || 0) - Number(a.createdAtMillis || 0)
+    );
+    allMessageReads = reads;
+
+    renderMessages();
+  } catch (error) {
+    alert("Message load failed: " + error.message);
+  }
+};
+
+async function loadScopedMessages() {
+  if (currentRole === "admin") {
+    return getCollectionRows("messages");
+  }
+
+  if (currentRole === "teacher") {
+    const rows = [];
+    const user = auth.currentUser;
+
+    if (user) {
+      rows.push(...await getCollectionRows(
+        "messages",
+        query(collection(db, "messages"), where("createdBy", "==", user.uid))
+      ));
+    }
+
+    rows.push(...await getRowsForAssignedClassSections("messages"));
+    rows.push(...await getCollectionRows(
+      "messages",
+      query(collection(db, "messages"), where("targetType", "==", "all"))
+    ));
+
+    return mergeRowsById(rows).filter((message) =>
+      message.createdBy === user?.uid
+      || message.targetType === "all"
+      || !message.classSection
+      || currentTeacherAssignments.some((assignment) =>
+        message.classSection === getClassSectionValue(assignment.classNameRaw, assignment.sectionRaw)
+      )
+    );
+  }
+
+  const student = getCurrentStudentRecord();
+  if (!student) return [];
+
+  const classSection = getClassSectionValue(student.className, student.section);
+  const studentIds = uniqueValues([
+    currentStudentId,
+    student.id,
+    student.studentId,
+    student.studentEmail
+  ].filter(Boolean));
+
+  const rows = [
+    ...await getCollectionRows(
+      "messages",
+      query(collection(db, "messages"), where("targetType", "==", "all"))
+    ),
+    ...await getCollectionRows(
+      "messages",
+      query(collection(db, "messages"), where("classSection", "==", classSection))
+    )
+  ];
+
+  if (studentIds.length) {
+    rows.push(...await getRowsByFieldValues("messages", "studentId", studentIds));
+  }
+
+  return mergeRowsById(rows).filter(messageMatchesCurrentStudent);
+}
+
+async function loadMessageReads() {
+  const user = auth.currentUser;
+  if (!user) return [];
+
+  return getCollectionRows(
+    "messageReads",
+    query(collection(db, "messageReads"), where("userId", "==", user.uid))
+  );
+}
+
+function mergeRowsById(rows) {
+  const merged = new Map();
+  rows.forEach((row) => {
+    if (row?.id) merged.set(row.id, row);
+  });
+  return Array.from(merged.values());
+}
+
+function messageMatchesCurrentStudent(message) {
+  if (currentRole === "admin") return true;
+  if (currentRole === "teacher") {
+    return message.targetType === "all"
+      || message.createdBy === auth.currentUser?.uid
+      || currentTeacherAssignments.some((assignment) =>
+        message.classSection === getClassSectionValue(assignment.classNameRaw, assignment.sectionRaw)
+      );
+  }
+
+  const student = getCurrentStudentRecord();
+  if (!student) return false;
+
+  const classSection = getClassSectionValue(student.className, student.section);
+  const studentIds = uniqueValues([
+    currentStudentId,
+    student.id,
+    student.studentId,
+    student.studentEmail
+  ].filter(Boolean)).map(normalizeText);
+
+  return message.targetType === "all"
+    || message.classSection === classSection
+    || studentIds.includes(normalizeText(message.studentId));
+}
+
+function renderMessages() {
+  const table = $("messageTable");
+  const empty = $("emptyMessages");
+  if (!table || !empty) return;
+
+  table.innerHTML = "";
+  empty.style.display = allMessages.length ? "none" : "block";
+
+  allMessages.forEach((message) => {
+    const row = document.createElement("tr");
+    const isRead = isMessageRead(message.id);
+
+    row.innerHTML = `
+      <td>${escapeHtml(message.createdByName || message.createdByRole || "-")}</td>
+      <td>${escapeHtml(getMessageTargetLabel(message))}</td>
+      <td>${escapeHtml(message.title || "-")}</td>
+      <td>${escapeHtml(message.body || message.message || "-")}</td>
+      <td>${escapeHtml(formatActivityDate(message.createdAtMillis))}</td>
+      <td>${getMessageStatusHtml(message, isRead)}</td>
+      <td>${getMessageActionButtons(message, isRead)}</td>
+    `;
+
+    table.appendChild(row);
+  });
+}
+
+function getMessageTargetLabel(message) {
+  if (message.targetType === "student") return `Student: ${message.studentId || "-"}`;
+  if (message.targetType === "classSection") {
+    return `${getDisplayClassName(message.className)} - Section ${message.section || "-"}`;
+  }
+  return "All Students";
+}
+
+function getMessageStatusHtml(message, isRead) {
+  if (currentRole === "student" || currentRole === "parent") {
+    return isRead
+      ? `<span class="statusBadge statusSubmitted">Read</span>`
+      : `<span class="statusBadge statusLate">Unread</span>`;
+  }
+
+  return `<span class="statusBadge statusSubmitted">Sent</span>`;
+}
+
+function getMessageActionButtons(message, isRead) {
+  const buttons = [];
+
+  if ((currentRole === "student" || currentRole === "parent") && !isRead) {
+    buttons.push(`<button class="actionBtn editBtn" onclick="markMessageRead('${message.id}')">Mark Read</button>`);
+  }
+
+  if (currentRole === "admin" || message.createdBy === auth.currentUser?.uid) {
+    buttons.push(`<button class="actionBtn deleteBtn" onclick="deleteMessage('${message.id}')">Delete</button>`);
+  }
+
+  return buttons.length ? buttons.join(" ") : "-";
+}
+
+function isMessageRead(messageId) {
+  return allMessageReads.some((read) => read.messageId === messageId);
+}
+
+window.publishMessage = async function () {
+  if (currentRole !== "admin" && currentRole !== "teacher") {
+    alert("Only admin and teacher can send messages");
+    return;
+  }
+
+  const targetType = $("messageTarget").value;
+  const className = $("messageClass").value.trim();
+  const section = $("messageSection").value.trim();
+  const studentId = $("messageStudentId").value.trim();
+  const title = $("messageTitle").value.trim();
+  const body = $("messageBody").value.trim();
+  const user = auth.currentUser;
+
+  if (!title || !body) {
+    alert("Enter message title and details");
+    return;
+  }
+
+  if (targetType === "classSection" && (!className || !section)) {
+    alert("Select class and section");
+    return;
+  }
+
+  if (targetType === "student" && !studentId) {
+    alert("Enter student email or ID");
+    return;
+  }
+
+  const targetStudent = targetType === "student"
+    ? allData.find((student) =>
+      normalizeText(student.id) === normalizeText(studentId)
+      || normalizeText(student.studentId) === normalizeText(studentId)
+      || normalizeText(student.studentEmail) === normalizeText(studentId)
+    )
+    : null;
+
+  if (currentRole === "teacher" && targetType === "classSection" && !canTeacherAccessClassSection(className, section)) {
+    alert("You can send class messages only for your assigned class/section");
+    return;
+  }
+
+  if (currentRole === "teacher" && targetType === "student" && (!targetStudent || !canTeacherAccessStudent(targetStudent))) {
+    alert("You can send student messages only to students in your assigned class/section");
+    return;
+  }
+
+  const targetClassName = targetType === "classSection" ? className : (targetStudent?.className || "");
+  const targetSection = targetType === "classSection" ? section : (targetStudent?.section || "");
+
+  try {
+    const docRef = await addDoc(collection(db, "messages"), {
+      targetType,
+      className: targetClassName,
+      section: targetSection,
+      classSection: targetClassName && targetSection ? getClassSectionValue(targetClassName, targetSection) : "",
+      studentId: targetType === "student" ? studentId : "",
+      title,
+      body,
+      createdBy: user ? user.uid : "",
+      createdByName: currentDisplayName || currentRole,
+      createdByRole: currentRole,
+      createdAtMillis: Date.now(),
+      createdAt: serverTimestamp()
+    });
+
+    await addActivityLog("Message Sent", {
+      messageId: docRef.id,
+      target: targetType,
+      title
+    });
+
+    clearMessageForm();
+    await loadMessages();
+    alert("Message sent successfully");
+  } catch (error) {
+    alert("Message send failed: " + error.message);
+  }
+};
+
+function clearMessageForm() {
+  $("messageTarget").value = "all";
+  $("messageTitle").value = "";
+  $("messageBody").value = "";
+  $("messageStudentId").value = "";
+  updateMessageTargetMode();
+}
+
+window.markMessageRead = async function (messageId) {
+  const user = auth.currentUser;
+  if (!user) return;
+
+  try {
+    await setDoc(doc(db, "messageReads", `${messageId}_${user.uid}`), {
+      messageId,
+      userId: user.uid,
+      userRole: currentRole,
+      readAtMillis: Date.now(),
+      readAt: serverTimestamp()
+    });
+
+    await loadMessages();
+  } catch (error) {
+    alert("Read status update failed: " + error.message);
+  }
+};
+
+window.deleteMessage = async function (messageId) {
+  const message = allMessages.find((item) => item.id === messageId);
+  const canDelete = currentRole === "admin" || message?.createdBy === auth.currentUser?.uid;
+
+  if (!canDelete) {
+    alert("You do not have permission to delete this message");
+    return;
+  }
+
+  if (!confirm("Delete this message?")) return;
+
+  try {
+    await deleteDoc(doc(db, "messages", messageId));
+    await addActivityLog("Message Deleted", {
+      messageId,
+      title: message?.title || "-"
+    });
+    await loadMessages();
+  } catch (error) {
+    alert("Message delete failed: " + error.message);
+  }
+};
+
 function setupHomeworkPageForRole() {
-  if (currentRole === "student") {
+  if (currentRole === "student" || currentRole === "parent") {
     hide("homeworkPublishCard");
     hide("homeworkSubmissionCard");
-    $("homeworkListTitle").innerText = "My Homework";
+    $("homeworkListTitle").innerText = currentRole === "parent" ? "Child Homework" : "My Homework";
     return;
   }
 
@@ -971,7 +1807,7 @@ async function loadScopedHomeworks() {
     return getCollectionRows("homeworks");
   }
 
-  if (currentRole === "student") {
+  if (currentRole === "student" || currentRole === "parent") {
     const student = getCurrentStudentRecord();
     if (!student) return [];
 
@@ -992,13 +1828,17 @@ async function loadScopedHomeworkSubmissions() {
     return getCollectionRows("homeworkSubmissions");
   }
 
-  if (currentRole === "student") {
-    if (!currentStudentId) return [];
+  if (currentRole === "student" || currentRole === "parent") {
+    const student = getCurrentStudentRecord();
+    const studentIds = uniqueValues([
+      currentStudentId,
+      student?.studentId,
+      student?.studentEmail
+    ].filter(Boolean));
 
-    return getCollectionRows(
-      "homeworkSubmissions",
-      query(collection(db, "homeworkSubmissions"), where("studentId", "==", currentStudentId))
-    );
+    if (!studentIds.length) return [];
+
+    return getRowsByFieldValues("homeworkSubmissions", "studentId", studentIds);
   }
 
   return getRowsForAssignedClassSections("homeworkSubmissions");
@@ -1154,8 +1994,18 @@ function getVisibleHomeworks() {
 
 function getHomeworkActionButtons(homework, submission) {
   if (currentRole === "student") {
+    if (submission?.status === "Checked") {
+      return `<button class="actionBtn" onclick="viewHomeworkFeedback('${homework.id}')">View Feedback</button>`;
+    }
+
     const label = submission ? "Update Submission" : "Submit";
     return `<button class="actionBtn editBtn" onclick="submitHomework('${homework.id}')">${label}</button>`;
+  }
+
+  if (currentRole === "parent") {
+    return submission
+      ? `<button class="actionBtn" onclick="viewHomeworkFeedback('${homework.id}')">View Feedback</button>`
+      : "-";
   }
 
   const canDelete = currentRole === "admin" || homework.createdBy === auth.currentUser?.uid;
@@ -1181,6 +2031,12 @@ window.submitHomework = async function (homeworkId) {
   }
 
   const existing = getHomeworkSubmissionForCurrentStudent(homeworkId);
+
+  if (existing?.status === "Checked") {
+    alert("This homework has already been checked. You can view feedback, but cannot update it now.");
+    return;
+  }
+
   const submissionText = prompt("Write submission text or paste file/link", existing?.submissionText || "");
 
   if (submissionText === null) return;
@@ -1248,10 +2104,75 @@ window.viewHomeworkSubmissions = function (homeworkId) {
       <td>${escapeHtml(submission.roll || "-")}</td>
       <td><span class="statusBadge ${getHomeworkStatusClass(submission.status)}">${escapeHtml(submission.status || "-")}</span></td>
       <td>${escapeHtml(submission.submissionText || "-")}</td>
+      <td>${escapeHtml(submission.teacherRemarks || "-")}</td>
       <td>${escapeHtml(formatActivityDate(submission.submittedAtMillis))}</td>
+      <td>
+        <button class="actionBtn editBtn" onclick="addHomeworkRemark('${homeworkId}', '${submission.id}')">
+          ${submission.teacherRemarks ? "Update Remarks" : "Add Remarks"}
+        </button>
+      </td>
     `;
     table.appendChild(row);
   });
+};
+
+window.addHomeworkRemark = async function (homeworkId, submissionId) {
+  if (currentRole !== "admin" && currentRole !== "teacher") {
+    alert("You do not have permission");
+    return;
+  }
+
+  const homework = allHomeworks.find((item) => item.id === homeworkId);
+  const submission = allHomeworkSubmissions.find((item) => item.id === submissionId);
+
+  if (!homework || !submission) {
+    alert("Homework submission not found");
+    return;
+  }
+
+  if (currentRole === "teacher" && !canTeacherAccessClassSection(submission.className, submission.section)) {
+    alert("You can check only your assigned class/section submissions");
+    return;
+  }
+
+  const remarks = prompt("Teacher remarks", submission.teacherRemarks || "");
+
+  if (remarks === null) return;
+
+  try {
+    await updateDoc(doc(db, "homeworkSubmissions", submissionId), {
+      teacherRemarks: remarks.trim(),
+      status: "Checked",
+      checkedAtMillis: Date.now(),
+      checkedAt: serverTimestamp(),
+      checkedBy: auth.currentUser?.uid || "",
+      checkedByName: currentDisplayName || currentRole
+    });
+
+    await addActivityLog("Homework Checked", {
+      homeworkId,
+      title: homework.title || "-",
+      studentName: submission.studentName || "-"
+    });
+
+    await loadHomeworkData();
+    viewHomeworkSubmissions(homeworkId);
+    alert("Remarks saved successfully");
+  } catch (error) {
+    alert("Remarks save failed: " + error.message);
+  }
+};
+
+window.viewHomeworkFeedback = function (homeworkId) {
+  const submission = getHomeworkSubmissionForCurrentStudent(homeworkId);
+
+  if (!submission) {
+    alert("No submission found");
+    return;
+  }
+
+  const remarks = submission.teacherRemarks || "No remarks yet";
+  alert(`Status: ${submission.status || "-"}\nTeacher Remarks: ${remarks}`);
 };
 
 window.deleteHomework = async function (homeworkId) {
@@ -1313,15 +2234,16 @@ function isAfterHomeworkDeadline(homework, timestamp = Date.now()) {
 }
 
 function getHomeworkStatusClass(status) {
+  if (status === "Checked") return "statusChecked";
   if (status === "Submitted") return "statusSubmitted";
   if (status === "Late") return "statusLate";
   return "statusPending";
 }
 
 function setupFeesPageForRole() {
-  if (currentRole === "student") {
+  if (currentRole === "student" || currentRole === "parent") {
     hide("feeCreateCard");
-    $("feeListTitle").innerText = "My Fees";
+    $("feeListTitle").innerText = currentRole === "parent" ? "Child Fees" : "My Fees";
     return;
   }
 
@@ -1343,6 +2265,7 @@ window.loadFeeRecords = async function () {
     });
 
     renderFees();
+    renderDashboardAnalytics(allData);
   } catch (error) {
     alert("Fee records load failed: " + error.message);
   }
@@ -1353,7 +2276,7 @@ async function loadScopedFeeRecords() {
     return getCollectionRows("feeRecords");
   }
 
-  if (currentRole === "student") {
+  if (currentRole === "student" || currentRole === "parent") {
     const student = getCurrentStudentRecord();
     const studentIds = uniqueValues([
       currentStudentId,
@@ -1538,8 +2461,10 @@ function getFilteredFeeRecords() {
 }
 
 function getFeeActionButtons(fee, status) {
+  const history = getPaymentHistory(fee);
+
   if (currentRole !== "admin") {
-    const historyButton = getPaymentHistory(fee).length
+    const historyButton = history.length
       ? `<button class="actionBtn" onclick="viewFeePaymentHistory('${fee.id}')">History</button>`
       : "";
     return historyButton || "-";
@@ -1551,10 +2476,14 @@ function getFeeActionButtons(fee, status) {
   const reminderButton = status === "Paid"
     ? ""
     : `<button class="actionBtn" onclick="sendFeeWhatsAppReminder('${fee.id}')">WhatsApp Reminder</button>`;
+  const receiptButton = history.length
+    ? `<button class="actionBtn" onclick="downloadLatestFeeReceipt('${fee.id}')">Download Receipt</button>`
+    : "";
 
   return `
     ${paidButton}
     ${reminderButton}
+    ${receiptButton}
     <button class="actionBtn" onclick="viewFeePaymentHistory('${fee.id}')">History</button>
     <button class="actionBtn deleteBtn" onclick="deleteFeeRecord('${fee.id}')">Delete</button>
   `;
@@ -1591,6 +2520,7 @@ window.addFeePayment = async function (feeId) {
   const now = Date.now();
   const previousPayments = getPaymentHistory(fee);
   const newPayment = {
+    receiptNo: generateFeeReceiptNo(fee, now, previousPayments.length + 1),
     amount: paymentAmount,
     paidAtMillis: now,
     paidBy: auth.currentUser ? auth.currentUser.uid : "",
@@ -1615,6 +2545,7 @@ window.addFeePayment = async function (feeId) {
 
     await addActivityLog("Fee Payment Added", {
       feeId,
+      receiptNo: newPayment.receiptNo,
       studentName: fee.studentName || "-",
       feeType: fee.feeType || "-",
       feeMonth: fee.feeMonth || "-",
@@ -1631,6 +2562,24 @@ window.addFeePayment = async function (feeId) {
 };
 
 window.markFeePaid = window.addFeePayment;
+
+window.downloadLatestFeeReceipt = function (feeId) {
+  const fee = allFeeRecords.find((item) => item.id === feeId);
+
+  if (!fee) {
+    alert("Fee record not found");
+    return;
+  }
+
+  const payments = getPaymentHistory(fee);
+
+  if (!payments.length) {
+    alert("No payment found for receipt");
+    return;
+  }
+
+  downloadFeeReceiptPDF(feeId, payments.length - 1);
+};
 
 window.sendFeeWhatsAppReminder = async function (feeId) {
   if (currentRole !== "admin") {
@@ -1684,11 +2633,23 @@ window.viewFeePaymentHistory = function (feeId) {
     return;
   }
 
-  const lines = payments.map((payment, index) => {
-    return `${index + 1}. ${formatMoney(payment.amount)} - ${formatActivityDate(payment.paidAtMillis)} - ${payment.paidByName || "Admin"}`;
-  });
+  const lines = payments.map((payment, index) =>
+    `${index + 1}. ${payment.receiptNo || generateFeeReceiptNo(fee, payment.paidAtMillis, index + 1)} | ${formatMoney(payment.amount)} | ${formatActivityDate(payment.paidAtMillis)} | ${payment.paidByName || "Admin"}`
+  );
 
-  alert(`Payment History\n${fee.studentName || "-"} | ${fee.feeType || "-"} | ${fee.feeMonth || "-"}\n\n${lines.join("\n")}`);
+  const choice = prompt(
+    `Payment History\n${fee.studentName || "-"} | ${fee.feeType || "-"} | ${fee.feeMonth || "-"}\n\n${lines.join("\n")}\n\nEnter payment serial number to download receipt, or leave blank to close.`
+  );
+
+  if (choice === null || !choice.trim()) return;
+
+  const index = Number(choice) - 1;
+  if (!payments[index]) {
+    alert("Invalid payment serial number");
+    return;
+  }
+
+  downloadFeeReceiptPDF(fee.id, index);
 };
 
 window.deleteFeeRecord = async function (feeId) {
@@ -1822,6 +2783,77 @@ function buildFeeReminderMessage(fee, student, summary) {
   ].join("\n");
 }
 
+function downloadFeeReceiptPDF(feeId, paymentIndex) {
+  if (!window.jspdf) {
+    alert("PDF library not loaded");
+    return;
+  }
+
+  const fee = allFeeRecords.find((item) => item.id === feeId);
+
+  if (!fee) {
+    alert("Fee record not found");
+    return;
+  }
+
+  const payments = getPaymentHistory(fee);
+  const payment = payments[paymentIndex];
+
+  if (!payment) {
+    alert("Payment record not found");
+    return;
+  }
+
+  const { jsPDF } = window.jspdf;
+  const pdf = new jsPDF();
+  const student = getStudentForFee(fee);
+  const summary = getFeeSummary(fee);
+  const receiptNo = payment.receiptNo || generateFeeReceiptNo(fee, payment.paidAtMillis, paymentIndex + 1);
+
+  pdf.setFontSize(18);
+  pdf.text("FH School Management System", 14, 18);
+
+  pdf.setFontSize(12);
+  pdf.text("Fee Payment Receipt", 14, 28);
+  pdf.text("Receipt No: " + receiptNo, 14, 38);
+  pdf.text("Date: " + formatActivityDate(payment.paidAtMillis || Date.now()), 120, 38);
+
+  pdf.setFontSize(10);
+  pdf.text("Student: " + (fee.studentName || student?.name || "-"), 14, 52);
+  pdf.text("Class: " + (getDisplayClassName(fee.className) || "-"), 14, 59);
+  pdf.text("Section: " + (fee.section || "-"), 70, 59);
+  pdf.text("Roll: " + (fee.roll || "-"), 120, 59);
+  pdf.text("Guardian Phone: " + (student?.guardianPhone || "-"), 14, 66);
+
+  pdf.autoTable({
+    startY: 78,
+    head: [["Fee Type", "Month", "Total", "Paid Now", "Total Paid", "Due"]],
+    body: [[
+      fee.feeType || "-",
+      fee.feeMonth || "-",
+      formatMoney(summary.totalAmount),
+      formatMoney(payment.amount),
+      formatMoney(summary.paidAmount),
+      formatMoney(summary.dueAmount)
+    ]]
+  });
+
+  const y = pdf.lastAutoTable.finalY + 14;
+  pdf.text("Payment received by: " + (payment.paidByName || currentDisplayName || "Admin"), 14, y);
+  pdf.text("Status: " + summary.status, 14, y + 7);
+  pdf.text("This is a computer generated receipt.", 14, y + 22);
+
+  pdf.save(`fee-receipt-${receiptNo}.pdf`);
+}
+
+function generateFeeReceiptNo(fee, timestamp = Date.now(), serial = 1) {
+  const date = new Date(timestamp || Date.now());
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const roll = String(fee.roll || "0").replace(/\D/g, "") || "0";
+  return `FH-${year}${month}-${roll}-${String(serial).padStart(3, "0")}`;
+}
+
 function normalizeFeeType(value) {
   return String(value || "")
     .trim()
@@ -1832,6 +2864,289 @@ function normalizeFeeType(value) {
 
 function formatMoney(value) {
   return Number(value || 0).toFixed(2);
+}
+
+function setupRoutinePageForRole() {
+  updateRoutineFormMode();
+
+  if (currentRole === "student" || currentRole === "parent") {
+    hide("routineCreateCard");
+    $("routineListTitle").innerText = currentRole === "parent" ? "Child Routine" : "My Routine";
+    setStudentRoutineFilters();
+    return;
+  }
+
+  show("routineCreateCard");
+  $("routineListTitle").innerText = "Routine";
+
+  if (currentRole === "teacher") {
+    applyTeacherScopedDropdowns();
+
+    const classSelect = $("routineClass");
+    if (classSelect && !classSelect.value && currentTeacherAssignments.length) {
+      classSelect.value = currentTeacherAssignments[0].classNameRaw;
+      updateTeacherSectionDropdown("routineClass", "routineSection", "Select Assigned Section", true);
+    }
+  }
+}
+
+function setStudentRoutineFilters() {
+  const student = getCurrentStudentRecord();
+
+  if (!student) return;
+
+  const className = getDisplayClassName(student.className);
+  setSelectOptions("routineFilterClass", [className], "All Classes");
+  setSelectOptions("routineFilterSection", [student.section], "All Sections");
+
+  $("routineFilterClass").value = className;
+  $("routineFilterSection").value = student.section || "";
+}
+
+window.updateRoutineFormMode = function () {
+  const type = $("routineType")?.value || "class";
+
+  if ($("routineDay")) $("routineDay").style.display = type === "class" ? "inline-block" : "none";
+  if ($("routineDate")) $("routineDate").style.display = type === "exam" ? "inline-block" : "none";
+};
+
+window.loadRoutineRecords = async function () {
+  try {
+    allRoutineRecords = await loadScopedRoutineRecords();
+    renderRoutineRecords();
+  } catch (error) {
+    alert("Routine load failed: " + error.message);
+  }
+};
+
+async function loadScopedRoutineRecords() {
+  if (currentRole === "admin") {
+    return getCollectionRows("routineRecords");
+  }
+
+  if (currentRole === "teacher") {
+    return getRowsForAssignedClassSections("routineRecords");
+  }
+
+  const student = getCurrentStudentRecord();
+  if (!student) return [];
+
+  return getCollectionRows(
+    "routineRecords",
+    query(
+      collection(db, "routineRecords"),
+      where("classSection", "==", getClassSectionValue(student.className, student.section))
+    )
+  );
+}
+
+window.saveRoutine = async function () {
+  if (currentRole !== "admin" && currentRole !== "teacher") {
+    alert("Only admin and teacher can save routine");
+    return;
+  }
+
+  const type = $("routineType").value;
+  const className = $("routineClass").value.trim();
+  const section = $("routineSection").value.trim();
+  const day = $("routineDay").value.trim();
+  const date = $("routineDate").value;
+  const subject = $("routineSubject").value.trim();
+  const title = $("routineTitle").value.trim();
+  const startTime = $("routineStartTime").value;
+  const endTime = $("routineEndTime").value;
+  const teacherName = $("routineTeacher").value.trim();
+  const room = $("routineRoom").value.trim();
+  const note = $("routineNote").value.trim();
+
+  if (!className || !section || !subject || !startTime) {
+    alert("Fill class, section, subject, and start time");
+    return;
+  }
+
+  if (type === "class" && !day) {
+    alert("Select routine day");
+    return;
+  }
+
+  if (type === "exam" && !date) {
+    alert("Select exam date");
+    return;
+  }
+
+  if (currentRole === "teacher" && !canTeacherAccessClassSection(className, section)) {
+    alert("You can save routine only for your assigned class/section");
+    return;
+  }
+
+  const displayClassName = getDisplayClassName(className);
+
+  try {
+    const docRef = await addDoc(collection(db, "routineRecords"), {
+      type,
+      className: displayClassName,
+      section,
+      classSection: getClassSectionValue(displayClassName, section),
+      day: type === "class" ? day : "",
+      date: type === "exam" ? date : "",
+      subject,
+      title,
+      startTime,
+      endTime,
+      teacherName,
+      room,
+      note,
+      createdBy: auth.currentUser?.uid || "",
+      createdByName: currentDisplayName || currentRole,
+      createdByRole: currentRole,
+      createdAtMillis: Date.now(),
+      createdAt: serverTimestamp()
+    });
+
+    await addActivityLog("Routine Saved", {
+      routineId: docRef.id,
+      type,
+      className: displayClassName,
+      section,
+      subject
+    });
+
+    clearRoutineForm();
+    await loadRoutineRecords();
+    alert("Routine saved successfully");
+  } catch (error) {
+    alert("Routine save failed: " + error.message);
+  }
+};
+
+function clearRoutineForm() {
+  [
+    "routineSubject",
+    "routineTitle",
+    "routineStartTime",
+    "routineEndTime",
+    "routineTeacher",
+    "routineRoom",
+    "routineNote"
+  ].forEach((id) => {
+    if ($(id)) $(id).value = "";
+  });
+
+  if ($("routineDay")) $("routineDay").value = "";
+  if ($("routineDate")) $("routineDate").value = "";
+}
+
+window.renderRoutineRecords = function () {
+  const table = $("routineTable");
+  const empty = $("emptyRoutine");
+
+  if (!table || !empty) return;
+
+  const typeFilter = $("routineFilterType")?.value || "class";
+  const classFilter = $("routineFilterClass")?.value || "";
+  const sectionFilter = $("routineFilterSection")?.value || "";
+
+  const records = allRoutineRecords
+    .filter((record) =>
+      (typeFilter === "all" || record.type === typeFilter) &&
+      (!classFilter || normalizeClassName(record.className) === normalizeClassName(classFilter)) &&
+      (!sectionFilter || normalizeText(record.section) === normalizeText(sectionFilter))
+    )
+    .sort(sortRoutineRecords);
+
+  table.innerHTML = "";
+  empty.style.display = records.length ? "none" : "block";
+
+  records.forEach((record) => {
+    const row = document.createElement("tr");
+
+    row.innerHTML = `
+      <td>${escapeHtml(getRoutineTypeLabel(record.type))}</td>
+      <td>${escapeHtml(getDisplayClassName(record.className) || "-")}</td>
+      <td>${escapeHtml(record.section || "-")}</td>
+      <td>${escapeHtml(record.type === "exam" ? record.date || "-" : record.day || "-")}</td>
+      <td>${escapeHtml(formatRoutineTime(record))}</td>
+      <td>${escapeHtml(record.subject || "-")}</td>
+      <td>${escapeHtml(record.title || "-")}</td>
+      <td>${escapeHtml(record.teacherName || "-")}</td>
+      <td>${escapeHtml(record.room || "-")}</td>
+      <td>${escapeHtml(record.note || "-")}</td>
+      <td>${getRoutineActionButtons(record)}</td>
+    `;
+
+    table.appendChild(row);
+  });
+};
+
+function getRoutineActionButtons(record) {
+  const canDelete = currentRole === "admin" || (
+    currentRole === "teacher" && record.createdBy === auth.currentUser?.uid
+  );
+
+  return canDelete
+    ? `<button class="actionBtn deleteBtn" onclick="deleteRoutine('${record.id}')">Delete</button>`
+    : "-";
+}
+
+window.deleteRoutine = async function (id) {
+  const routine = allRoutineRecords.find((record) => record.id === id);
+  const canDelete = currentRole === "admin" || (
+    currentRole === "teacher" && routine?.createdBy === auth.currentUser?.uid
+  );
+
+  if (!canDelete) {
+    alert("You do not have permission to delete this routine");
+    return;
+  }
+
+  if (!confirm("Delete this routine item?")) return;
+
+  try {
+    await deleteDoc(doc(db, "routineRecords", id));
+    await addActivityLog("Routine Deleted", {
+      routineId: id,
+      type: routine?.type || "-",
+      className: routine?.className || "-",
+      section: routine?.section || "-",
+      subject: routine?.subject || "-"
+    });
+    await loadRoutineRecords();
+  } catch (error) {
+    alert("Routine delete failed: " + error.message);
+  }
+};
+
+function sortRoutineRecords(a, b) {
+  const typeOrder = String(a.type || "").localeCompare(String(b.type || ""));
+  if (typeOrder !== 0) return typeOrder;
+
+  const classOrder = normalizeClassName(a.className).localeCompare(normalizeClassName(b.className), undefined, { numeric: true });
+  if (classOrder !== 0) return classOrder;
+
+  const sectionOrder = normalizeText(a.section).localeCompare(normalizeText(b.section));
+  if (sectionOrder !== 0) return sectionOrder;
+
+  const aDay = a.type === "exam" ? String(a.date || "") : String(getDayOrder(a.day));
+  const bDay = b.type === "exam" ? String(b.date || "") : String(getDayOrder(b.day));
+  const dayOrder = aDay.localeCompare(bDay, undefined, { numeric: true });
+  if (dayOrder !== 0) return dayOrder;
+
+  return String(a.startTime || "").localeCompare(String(b.startTime || ""));
+}
+
+function getDayOrder(day) {
+  const days = ["Saturday", "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday"];
+  const index = days.indexOf(day);
+  return index === -1 ? 99 : index;
+}
+
+function getRoutineTypeLabel(type) {
+  return type === "exam" ? "Exam Routine" : "Class Routine";
+}
+
+function formatRoutineTime(record) {
+  if (!record.startTime && !record.endTime) return "-";
+  return record.endTime ? `${record.startTime} - ${record.endTime}` : record.startTime;
 }
 
 window.downloadFullBackup = async function () {
@@ -1852,11 +3167,13 @@ window.downloadFullBackup = async function () {
       collections: {
         students: await getCollectionBackup("students"),
         attendanceRecords: await getCollectionBackup("attendanceRecords"),
+        subjectAttendanceRecords: await getCollectionBackup("subjectAttendanceRecords"),
         notices: await getCollectionBackup("notices"),
         users: await getCollectionBackup("users"),
         homeworks: await getCollectionBackup("homeworks"),
         homeworkSubmissions: await getCollectionBackup("homeworkSubmissions"),
-        feeRecords: await getCollectionBackup("feeRecords")
+        feeRecords: await getCollectionBackup("feeRecords"),
+        routineRecords: await getCollectionBackup("routineRecords")
       }
     };
 
@@ -1872,17 +3189,19 @@ window.downloadFullBackup = async function () {
     URL.revokeObjectURL(url);
 
     if (status) {
-      status.innerText = `Backup downloaded. Students: ${backup.collections.students.length}, Attendance: ${backup.collections.attendanceRecords.length}, Notices: ${backup.collections.notices.length}, Users: ${backup.collections.users.length}, Homework: ${backup.collections.homeworks.length}, Fees: ${backup.collections.feeRecords.length}`;
+      status.innerText = `Backup downloaded. Students: ${backup.collections.students.length}, Attendance: ${backup.collections.attendanceRecords.length}, Subject Attendance: ${backup.collections.subjectAttendanceRecords.length}, Notices: ${backup.collections.notices.length}, Users: ${backup.collections.users.length}, Homework: ${backup.collections.homeworks.length}, Fees: ${backup.collections.feeRecords.length}, Routine: ${backup.collections.routineRecords.length}`;
     }
 
     await addActivityLog("Backup Downloaded", {
       students: backup.collections.students.length,
       attendanceRecords: backup.collections.attendanceRecords.length,
+      subjectAttendanceRecords: backup.collections.subjectAttendanceRecords.length,
       notices: backup.collections.notices.length,
       users: backup.collections.users.length,
       homeworks: backup.collections.homeworks.length,
       homeworkSubmissions: backup.collections.homeworkSubmissions.length,
-      feeRecords: backup.collections.feeRecords.length
+      feeRecords: backup.collections.feeRecords.length,
+      routineRecords: backup.collections.routineRecords.length
     });
   } catch (error) {
     if (status) status.innerText = "";
@@ -1904,23 +3223,27 @@ window.repairClassNames = async function () {
   try {
     const studentsFixed = await repairCollectionClassNames("students");
     const attendanceFixed = await repairCollectionClassNames("attendanceRecords");
+    const subjectAttendanceFixed = await repairCollectionClassNames("subjectAttendanceRecords");
     const homeworkFixed = await repairCollectionClassNames("homeworks");
     const homeworkSubmissionFixed = await repairCollectionClassNames("homeworkSubmissions");
     const feeFixed = await repairCollectionClassNames("feeRecords");
+    const routineFixed = await repairCollectionClassNames("routineRecords");
 
     studentKeyBackfillDone = false;
     attendanceRecordBackfillDone = false;
 
     if (status) {
-      status.innerText = `Repair complete. Students updated: ${studentsFixed}, Attendance records updated: ${attendanceFixed}, Homework updated: ${homeworkFixed}, Submissions updated: ${homeworkSubmissionFixed}, Fees updated: ${feeFixed}`;
+      status.innerText = `Repair complete. Students updated: ${studentsFixed}, Attendance records updated: ${attendanceFixed}, Subject attendance updated: ${subjectAttendanceFixed}, Homework updated: ${homeworkFixed}, Submissions updated: ${homeworkSubmissionFixed}, Fees updated: ${feeFixed}, Routine updated: ${routineFixed}`;
     }
 
     await addActivityLog("Class Names Repaired", {
       studentsUpdated: studentsFixed,
       attendanceRecordsUpdated: attendanceFixed,
+      subjectAttendanceRecordsUpdated: subjectAttendanceFixed,
       homeworksUpdated: homeworkFixed,
       homeworkSubmissionsUpdated: homeworkSubmissionFixed,
-      feeRecordsUpdated: feeFixed
+      feeRecordsUpdated: feeFixed,
+      routineRecordsUpdated: routineFixed
     });
 
     alert("Class name repair completed");
@@ -2298,7 +3621,9 @@ function summarizeRestoreRows(rows) {
 
 function getBackupCollectionLabel(collectionName) {
   if (collectionName === "attendanceRecords") return "Attendance";
+  if (collectionName === "subjectAttendanceRecords") return "Subject Attendance";
   if (collectionName === "homeworkSubmissions") return "Homework Submissions";
+  if (collectionName === "routineRecords") return "Routine";
   return collectionName.charAt(0).toUpperCase() + collectionName.slice(1);
 }
 
@@ -2534,7 +3859,7 @@ window.showAllStudents = function () {
   hide("addStudentArea");
   closeStudentModal();
 
-  if (currentRole === "student") {
+  if (currentRole === "student" || currentRole === "parent") {
     hide("studentButtons");
     hide("studentFilterPanel");
     renderStudents(allData.length ? [allData[0]] : []);
@@ -2558,7 +3883,7 @@ function loadStudents() {
     return;
   }
 
-  const ref = currentRole === "student"
+  const ref = currentRole === "student" || currentRole === "parent"
     ? query(collection(db, "students"), where("studentId", "==", currentStudentId))
     : collection(db, "students");
 
@@ -2660,9 +3985,10 @@ function updateStudentViews(data) {
   renderTeacherProfileCard();
   updateDashboardStats(allData);
   updateClassWiseDashboard(allData);
+  renderDashboardAnalytics(allData);
   updateStudentProfileAndResult(allData);
 
-  if (currentRole === "student") {
+  if (currentRole === "student" || currentRole === "parent") {
     showStudentRecordOnly();
   } else {
     applyFilters();
@@ -3015,16 +4341,198 @@ function updateClassWiseDashboard(data) {
   });
 }
 
+function renderDashboardAnalytics(data) {
+  const analyticsArea = $("dashboardAnalyticsArea");
+  if (!analyticsArea) return;
+
+  if (currentRole === "student" || currentRole === "parent") {
+    hide("dashboardAnalyticsArea");
+    return;
+  }
+
+  show("dashboardAnalyticsArea");
+  renderDashboardTopStudents(data);
+  renderDashboardWeakStudents(data);
+  renderDashboardLowAttendance(data);
+  renderDashboardFeeDue();
+}
+
+function getStudentAnalyticsRows(data) {
+  return data.map((student) => {
+    const termKey = student.activeTerm || currentResultTerm || "finalTerm";
+    const subjects = getStudentTermSubjects(student, termKey);
+    const score = getResultScore(subjects);
+
+    return {
+      id: student.id,
+      name: student.name || "-",
+      className: getDisplayClassName(student.className) || "-",
+      section: student.section || "-",
+      roll: student.roll || "-",
+      percentage: score.percentage,
+      attendancePercent: Number(student.attendancePercent || 0)
+    };
+  });
+}
+
+function renderDashboardTopStudents(data) {
+  const table = $("dashboardTopStudents");
+  if (!table) return;
+
+  const rows = getStudentAnalyticsRows(data)
+    .filter((item) => item.percentage > 0)
+    .sort((a, b) => {
+      if (b.percentage !== a.percentage) return b.percentage - a.percentage;
+      return b.attendancePercent - a.attendancePercent;
+    })
+    .slice(0, 5);
+
+  table.innerHTML = "";
+
+  if (!rows.length) {
+    table.innerHTML = `<tr><td colspan="5">No result data found</td></tr>`;
+    return;
+  }
+
+  rows.forEach((item, index) => {
+    const row = document.createElement("tr");
+    row.innerHTML = `
+      <td>${index + 1}</td>
+      <td>${escapeHtml(item.name)}</td>
+      <td>${escapeHtml(item.className)}-${escapeHtml(item.section)}</td>
+      <td>${escapeHtml(item.roll)}</td>
+      <td>${item.percentage}%</td>
+    `;
+    table.appendChild(row);
+  });
+}
+
+function renderDashboardWeakStudents(data) {
+  const table = $("dashboardWeakStudents");
+  if (!table) return;
+
+  const rows = getStudentAnalyticsRows(data)
+    .filter((item) => item.percentage > 0 && item.percentage < 40)
+    .sort((a, b) => a.percentage - b.percentage)
+    .slice(0, 8);
+
+  table.innerHTML = "";
+
+  if (!rows.length) {
+    table.innerHTML = `<tr><td colspan="4">No weak result found</td></tr>`;
+    return;
+  }
+
+  rows.forEach((item) => {
+    const row = document.createElement("tr");
+    row.innerHTML = `
+      <td>${escapeHtml(item.name)}</td>
+      <td>${escapeHtml(item.className)}-${escapeHtml(item.section)}</td>
+      <td>${escapeHtml(item.roll)}</td>
+      <td>${item.percentage}%</td>
+    `;
+    table.appendChild(row);
+  });
+}
+
+function renderDashboardLowAttendance(data) {
+  const table = $("dashboardLowAttendance");
+  if (!table) return;
+
+  const rows = getStudentAnalyticsRows(data)
+    .filter((item) => item.attendancePercent > 0 && item.attendancePercent < 75)
+    .sort((a, b) => a.attendancePercent - b.attendancePercent)
+    .slice(0, 8);
+
+  table.innerHTML = "";
+
+  if (!rows.length) {
+    table.innerHTML = `<tr><td colspan="4">No low attendance found</td></tr>`;
+    return;
+  }
+
+  rows.forEach((item) => {
+    const row = document.createElement("tr");
+    row.innerHTML = `
+      <td>${escapeHtml(item.name)}</td>
+      <td>${escapeHtml(item.className)}-${escapeHtml(item.section)}</td>
+      <td>${escapeHtml(item.roll)}</td>
+      <td>${item.attendancePercent}%</td>
+    `;
+    table.appendChild(row);
+  });
+}
+
+window.loadDashboardFeeAnalytics = async function () {
+  if (currentRole !== "admin") {
+    renderDashboardFeeDue();
+    return;
+  }
+
+  try {
+    allFeeRecords = await getCollectionRows("feeRecords");
+    renderDashboardFeeDue();
+  } catch (error) {
+    console.warn("Dashboard fee analytics load failed:", error);
+    renderDashboardFeeDue();
+  }
+};
+
+function renderDashboardFeeDue() {
+  const feePanel = $("dashboardFeePanel");
+  const table = $("dashboardFeeDue");
+  const summary = $("dashboardFeeSummary");
+
+  if (!feePanel || !table || !summary) return;
+
+  if (currentRole !== "admin") {
+    hide("dashboardFeePanel");
+    return;
+  }
+
+  show("dashboardFeePanel");
+
+  const dueRows = allFeeRecords
+    .map((fee) => ({ fee, summary: getFeeSummary(fee) }))
+    .filter((item) => item.summary.dueAmount > 0)
+    .sort((a, b) => b.summary.dueAmount - a.summary.dueAmount);
+
+  const totalDue = dueRows.reduce((sum, item) => sum + item.summary.dueAmount, 0);
+  const totalCollected = allFeeRecords.reduce((sum, fee) => sum + getFeeSummary(fee).paidAmount, 0);
+
+  summary.innerText = `Collected: ${formatMoney(totalCollected)} | Due: ${formatMoney(totalDue)} | Unpaid/Partial: ${dueRows.length}`;
+  table.innerHTML = "";
+
+  if (!dueRows.length) {
+    table.innerHTML = `<tr><td colspan="5">No fee due found</td></tr>`;
+    return;
+  }
+
+  dueRows.slice(0, 8).forEach(({ fee, summary: feeSummary }) => {
+    const row = document.createElement("tr");
+    row.innerHTML = `
+      <td>${escapeHtml(fee.studentName || "-")}</td>
+      <td>${escapeHtml(getDisplayClassName(fee.className) || "-")}-${escapeHtml(fee.section || "-")}</td>
+      <td>${escapeHtml(fee.feeType || "-")}</td>
+      <td>${escapeHtml(formatMoney(feeSummary.dueAmount))}</td>
+      <td><span class="statusBadge ${getFeeStatusClass(feeSummary.status)}">${escapeHtml(feeSummary.status)}</span></td>
+    `;
+    table.appendChild(row);
+  });
+}
+
 function updateStudentProfileAndResult(data) {
-  if (currentRole !== "student") {
+  if (currentRole !== "student" && currentRole !== "parent") {
     hide("studentProfileArea");
     show("statsRow", "flex");
     show("classWiseDashboard");
+    show("dashboardAnalyticsArea");
     return;
   }
 
   hide("statsRow");
   hide("classWiseDashboard");
+  hide("dashboardAnalyticsArea");
   show("studentProfileArea");
 
   const student = data[0];
@@ -3049,6 +4557,7 @@ function updateStudentProfileAndResult(data) {
   $("studentProfileAddress").innerText = student.address || "-";
   $("studentProfileAttendance").innerText = student.attendance || "-";
   $("studentProfileAttendancePercent").innerText = (student.attendancePercent || 0) + "%";
+  renderDocumentLinks("studentProfileDocuments", student);
 
   renderStudentResultCard(student, getStudentTermSubjects(student, currentResultTerm));
 }
@@ -3292,6 +4801,7 @@ window.addStudent = async function () {
   const roll = $("roll").value.trim();
   const studentEmail = $("studentEmail").value.trim();
   const guardianInfo = getGuardianInfoFromForm();
+  const documentInfo = getStudentDocumentInfoFromForm();
 
   if (!name || !className || !section || !roll || !studentEmail) {
     alert("Fill all required fields");
@@ -3321,6 +4831,7 @@ window.addStudent = async function () {
       studentEmail,
       studentId: studentEmail,
       ...guardianInfo,
+      ...documentInfo,
       marks: 0,
       attendance: "Present",
       attendancePercent: 0,
@@ -3368,6 +4879,18 @@ function getGuardianInfoFromForm() {
   };
 }
 
+function getStudentDocumentInfoFromForm() {
+  return {
+    previousSchool: $("previousSchool")?.value.trim() || "",
+    documents: {
+      photoUrl: $("studentPhotoUrl")?.value.trim() || "",
+      photoDataUrl: $("studentPhotoDataUrl")?.value || "",
+      birthCertificateUrl: $("birthCertificateUrl")?.value.trim() || "",
+      transferCertificateUrl: $("transferCertificateUrl")?.value.trim() || ""
+    }
+  };
+}
+
 function clearStudentForm() {
   [
     "name",
@@ -3380,11 +4903,18 @@ function clearStudentForm() {
     "guardianPhone",
     "emergencyContact",
     "bloodGroup",
-    "address"
+    "address",
+    "previousSchool",
+    "studentPhotoUrl",
+    "studentPhotoDataUrl",
+    "birthCertificateUrl",
+    "transferCertificateUrl"
   ].forEach((id) => {
     const element = $(id);
     if (element) element.value = "";
   });
+
+  clearPhotoPreview("student");
 }
 
 window.applyFilters = function () {
@@ -3512,6 +5042,7 @@ function renderStudentModal(student, editable) {
   $("modalProfileAddress").innerText = student.address || "-";
   $("modalProfileAttendance").innerText = student.attendance || "-";
   $("modalProfileAttendancePercent").innerText = (student.attendancePercent || 0) + "%";
+  renderDocumentLinks("modalProfileDocuments", student);
 
   setupResultTermSelect();
   renderModalMarksTable(
@@ -3536,6 +5067,170 @@ function updateSaveMarksButton() {
   }
 
   show("saveMarksBtn", "inline-block");
+}
+
+function renderDocumentLinks(containerId, student) {
+  const container = $(containerId);
+  if (!container) return;
+
+  const documents = student?.documents || {};
+  const photoSource = documents.photoDataUrl || documents.photoUrl || "";
+  const links = [
+    { label: "Student Photo", url: documents.photoUrl },
+    { label: "Birth Certificate", url: documents.birthCertificateUrl },
+    { label: "Transfer Certificate", url: documents.transferCertificateUrl }
+  ].filter((item) => item.url && item.url !== photoSource);
+
+  if (!photoSource && !links.length && !student?.previousSchool) {
+    container.innerHTML = "";
+    return;
+  }
+
+  const previousSchool = student?.previousSchool
+    ? `<p><b>Previous School:</b> ${escapeHtml(student.previousSchool)}</p>`
+    : "";
+  const photoHtml = photoSource
+    ? `
+      <div class="studentPhotoCard">
+        <img class="studentProfilePhoto" src="${escapeHtml(photoSource)}" alt="Student photo">
+        <div class="studentPhotoCaption">${escapeHtml(student.name || "Student")}</div>
+      </div>
+    `
+    : "";
+
+  container.innerHTML = `
+    ${photoHtml}
+    <div class="studentDocumentMeta">
+      ${previousSchool}
+      <div class="documentLinkRow">
+        ${links.map((item) =>
+          `<a href="${escapeHtml(item.url)}" target="_blank" rel="noopener">${escapeHtml(item.label)}</a>`
+        ).join("")}
+      </div>
+    </div>
+  `;
+}
+
+window.openPhotoCapture = async function (target) {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    alert("Camera is not supported in this browser");
+    return;
+  }
+
+  currentPhotoTarget = target;
+  show("photoCaptureModal", "flex");
+
+  const status = $("photoCaptureStatus");
+  if (status) status.innerText = "Opening camera...";
+
+  try {
+    closePhotoStream();
+    photoCaptureStream = await navigator.mediaDevices.getUserMedia({
+      video: {
+        facingMode: "user",
+        width: { ideal: 640 },
+        height: { ideal: 480 }
+      },
+      audio: false
+    });
+
+    const video = $("photoVideo");
+    video.srcObject = photoCaptureStream;
+    await video.play();
+
+    if (status) status.innerText = "Camera ready. Click Take Photo.";
+  } catch (error) {
+    closePhotoStream();
+    if (status) status.innerText = "Camera failed: " + error.message;
+    alert("Camera failed: " + error.message);
+  }
+};
+
+window.takeStudentPhoto = function () {
+  const video = $("photoVideo");
+  const canvas = $("photoCanvas");
+
+  if (!video || !canvas || !currentPhotoTarget) {
+    alert("Camera is not ready");
+    return;
+  }
+
+  const sourceWidth = video.videoWidth || 640;
+  const sourceHeight = video.videoHeight || 480;
+  const maxWidth = 360;
+  const scale = Math.min(1, maxWidth / sourceWidth);
+  const width = Math.round(sourceWidth * scale);
+  const height = Math.round(sourceHeight * scale);
+
+  canvas.width = width;
+  canvas.height = height;
+
+  const context = canvas.getContext("2d");
+  context.drawImage(video, 0, 0, width, height);
+
+  const photoDataUrl = canvas.toDataURL("image/jpeg", 0.72);
+  setCapturedPhoto(currentPhotoTarget, photoDataUrl);
+
+  const status = $("photoCaptureStatus");
+  if (status) status.innerText = "Photo captured and ready to save.";
+
+  closePhotoCapture();
+};
+
+function setCapturedPhoto(target, photoDataUrl) {
+  const inputId = target === "admission" ? "admissionPhotoDataUrl" : "studentPhotoDataUrl";
+  const input = $(inputId);
+
+  if (input) input.value = photoDataUrl;
+  renderPhotoPreview(target, photoDataUrl);
+}
+
+function renderPhotoPreview(target, photoDataUrl) {
+  const previewId = target === "admission" ? "admissionPhotoPreview" : "studentPhotoPreview";
+  const preview = $(previewId);
+
+  if (!preview) return;
+
+  if (!photoDataUrl) {
+    preview.innerHTML = "";
+    preview.style.display = "none";
+    return;
+  }
+
+  preview.innerHTML = `
+    <img src="${escapeHtml(photoDataUrl)}" alt="Captured student photo">
+    <button type="button" class="secondaryBtn" onclick="clearCapturedPhoto('${target}')">Remove</button>
+  `;
+  preview.style.display = "flex";
+}
+
+window.clearCapturedPhoto = function (target = currentPhotoTarget) {
+  if (!target) return;
+
+  const inputId = target === "admission" ? "admissionPhotoDataUrl" : "studentPhotoDataUrl";
+  const input = $(inputId);
+  if (input) input.value = "";
+
+  clearPhotoPreview(target);
+};
+
+function clearPhotoPreview(target) {
+  renderPhotoPreview(target, "");
+}
+
+window.closePhotoCapture = function () {
+  closePhotoStream();
+  hide("photoCaptureModal");
+};
+
+function closePhotoStream() {
+  if (photoCaptureStream) {
+    photoCaptureStream.getTracks().forEach((track) => track.stop());
+    photoCaptureStream = null;
+  }
+
+  const video = $("photoVideo");
+  if (video) video.srcObject = null;
 }
 
 function renderModalMarksTable(subjects, editable) {
@@ -3823,9 +5518,17 @@ window.loadAttendanceSheet = async function () {
   const date = $("attendanceDate").value;
   const className = $("attendanceClass").value.trim();
   const section = $("attendanceSection").value.trim();
+  const attendanceType = getAttendanceType();
+  const subject = $("attendanceSubject")?.value.trim() || "";
+  const period = $("attendancePeriod")?.value.trim() || "";
 
   if (!date || !className || !section) {
     alert("Select date, class, and section");
+    return;
+  }
+
+  if (attendanceType === "subject" && !subject) {
+    alert("Select subject for subject attendance");
     return;
   }
 
@@ -3839,7 +5542,9 @@ window.loadAttendanceSheet = async function () {
     let savedRecords = {};
 
     try {
-      savedRecords = await getAttendanceRecordsForDate(date, className, section);
+      savedRecords = attendanceType === "subject"
+        ? await getSubjectAttendanceRecordsForDate(date, className, section, subject, period)
+        : await getAttendanceRecordsForDate(date, className, section);
     } catch (error) {
       console.warn("Saved attendance records load failed:", error);
     }
@@ -3975,6 +5680,53 @@ async function getAttendanceRecordsForDate(date, className, section) {
   return records;
 }
 
+async function getSubjectAttendanceRecordsForDate(date, className, section, subject, period) {
+  let rows = await getCollectionRows(
+    "subjectAttendanceRecords",
+    query(
+      collection(db, "subjectAttendanceRecords"),
+      where("classSection", "==", getClassSectionValue(className, section))
+    )
+  );
+
+  rows = rows.filter((record) =>
+    record.date === date &&
+    normalizeText(record.subject) === normalizeText(subject) &&
+    (!period || normalizeText(record.period) === normalizeText(period))
+  );
+
+  const records = {};
+  rows.forEach((record) => {
+    records[record.studentDocId] = record.status;
+  });
+
+  return records;
+}
+
+function getAttendanceType() {
+  return $("attendanceType")?.value || "daily";
+}
+
+function getAttendanceCollectionName() {
+  return getAttendanceType() === "subject" ? "subjectAttendanceRecords" : "attendanceRecords";
+}
+
+function getAttendanceRecordId(date, student, subject = "", period = "") {
+  if (getAttendanceType() !== "subject") {
+    return `${date}_${student.id}`;
+  }
+
+  return `${date}_${normalizeKey(subject)}_${normalizeKey(period || "period")}_${student.id}`;
+}
+
+function normalizeKey(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "") || "item";
+}
+
 function clearAttendanceSheet() {
   attendanceStudents = [];
   hide("attendanceSheetArea");
@@ -3992,9 +5744,14 @@ function renderAttendanceSheet(savedRecords = {}) {
   const date = $("attendanceDate").value;
   const className = $("attendanceClass").value.trim();
   const section = $("attendanceSection").value.trim();
+  const attendanceType = getAttendanceType();
+  const subject = $("attendanceSubject")?.value.trim() || "";
+  const period = $("attendancePeriod")?.value.trim() || "";
 
   $("attendanceSheetTitle").innerText =
-    `Attendance Sheet - ${date} - ${className}, Section ${section}`;
+    attendanceType === "subject"
+      ? `Subject Attendance - ${date} - ${className}, Section ${section} - ${subject}${period ? " (" + period + ")" : ""}`
+      : `Attendance Sheet - ${date} - ${className}, Section ${section}`;
 
   if (!attendanceStudents.length) {
     table.innerHTML = `
@@ -4043,11 +5800,21 @@ window.saveAttendance = async function () {
   const date = $("attendanceDate").value;
   const month = date.slice(0, 7);
   const currentUser = auth.currentUser;
+  const attendanceType = getAttendanceType();
+  const subject = $("attendanceSubject")?.value.trim() || "";
+  const period = $("attendancePeriod")?.value.trim() || "";
 
   if (!date) {
     alert("Select attendance date");
     return;
   }
+
+  if (attendanceType === "subject" && !subject) {
+    alert("Select subject for subject attendance");
+    return;
+  }
+
+  const collectionName = getAttendanceCollectionName();
 
   const updates = Array.from(document.querySelectorAll(".attendanceStatus"))
     .map((select) => {
@@ -4055,14 +5822,8 @@ window.saveAttendance = async function () {
 
       if (!student) return Promise.resolve();
 
-      const recordId = `${date}_${student.id}`;
-
-      return Promise.all([
-        updateDoc(doc(db, "students", student.id), {
-          attendance: select.value,
-          attendanceDate: date
-        }),
-        setDoc(doc(db, "attendanceRecords", recordId), {
+      const recordId = getAttendanceRecordId(date, student, subject, period);
+      const recordData = {
           date,
           month,
           className: student.className || "",
@@ -4075,20 +5836,45 @@ window.saveAttendance = async function () {
           status: select.value,
           markedBy: currentUser ? currentUser.uid : "",
           markedAt: serverTimestamp()
+        };
+
+      if (attendanceType === "subject") {
+        return setDoc(doc(db, collectionName, recordId), {
+          ...recordData,
+          attendanceType: "subject",
+          subject,
+          period
+        }, { merge: true });
+      }
+
+      return Promise.all([
+        updateDoc(doc(db, "students", student.id), {
+          attendance: select.value,
+          attendanceDate: date
+        }),
+        setDoc(doc(db, collectionName, recordId), {
+          ...recordData,
+          attendanceType: "daily"
         }, { merge: true })
       ]);
     });
 
   try {
     await Promise.all(updates);
-    await updateMonthlyAttendancePercentForLoadedStudents(month);
+    if (attendanceType === "daily") {
+      await updateMonthlyAttendancePercentForLoadedStudents(month);
+    }
+
     await addActivityLog("Attendance Saved", {
+      attendanceType,
       date,
       className: $("attendanceClass").value.trim(),
       section: $("attendanceSection").value.trim(),
+      subject: attendanceType === "subject" ? subject : "",
+      period: attendanceType === "subject" ? period : "",
       students: attendanceStudents.length
     });
-    alert("Attendance saved successfully");
+    alert(attendanceType === "subject" ? "Subject attendance saved successfully" : "Attendance saved successfully");
   } catch (error) {
     alert("Attendance save failed: " + error.message);
   }
@@ -4517,6 +6303,377 @@ function getMonthlyStudentSummaryRows(records) {
     }))
     .sort((a, b) => Number(a.roll || 0) - Number(b.roll || 0));
 }
+
+window.loadSubjectAttendanceReport = async function () {
+  if (currentRole !== "admin" && currentRole !== "teacher") {
+    alert("You do not have permission");
+    return;
+  }
+
+  const month = $("subjectReportMonth").value;
+  const className = $("subjectReportClass").value.trim();
+  const section = $("subjectReportSection").value.trim();
+  const subject = $("subjectReportSubject").value.trim();
+
+  if (!month) {
+    alert("Select month");
+    return;
+  }
+
+  try {
+    subjectAttendanceReportData = currentRole === "teacher"
+      ? await getTeacherSubjectAttendanceRecords(month)
+      : await getSubjectAttendanceRecords(month);
+
+    if (className) {
+      subjectAttendanceReportData = subjectAttendanceReportData.filter((item) =>
+        normalizeClassName(item.className) === normalizeClassName(className)
+      );
+    }
+
+    if (section) {
+      subjectAttendanceReportData = subjectAttendanceReportData.filter((item) =>
+        normalizeText(item.section) === normalizeText(section)
+      );
+    }
+
+    if (subject) {
+      subjectAttendanceReportData = subjectAttendanceReportData.filter((item) =>
+        normalizeText(item.subject) === normalizeText(subject)
+      );
+    }
+
+    updateSubjectReportSubtitle();
+    renderSubjectAttendanceReport(subjectAttendanceReportData);
+  } catch (error) {
+    subjectAttendanceReportData = [];
+    updateSubjectReportSubtitle();
+    renderSubjectAttendanceReport(subjectAttendanceReportData);
+    console.warn("Subject report load failed:", error);
+  }
+};
+
+async function getSubjectAttendanceRecords(month) {
+  const snap = await getDocs(
+    query(collection(db, "subjectAttendanceRecords"), where("month", "==", month))
+  );
+
+  const records = [];
+  snap.forEach((docSnap) => records.push({ id: docSnap.id, ...docSnap.data() }));
+
+  return records;
+}
+
+async function getTeacherSubjectAttendanceRecords(month) {
+  if (!currentTeacherAssignments.length) return [];
+
+  const resultMap = new Map();
+  const assignedClassSections = currentTeacherAssignments
+    .filter((assignment) => assignment.sectionRaw)
+    .flatMap((assignment) =>
+      getClassSectionVariants(assignment.classNameRaw, assignment.sectionRaw)
+    );
+
+  await Promise.all(uniqueValues(assignedClassSections).map(async (classSection) => {
+    const recordsRef = query(
+      collection(db, "subjectAttendanceRecords"),
+      where("classSection", "==", classSection)
+    );
+
+    const snap = await getDocs(recordsRef);
+
+    snap.forEach((docSnap) => {
+      const record = { id: docSnap.id, ...docSnap.data() };
+
+      if (record.month === month && canTeacherAccessAttendanceRecord(record)) {
+        resultMap.set(record.id, record);
+      }
+    });
+  }));
+
+  return Array.from(resultMap.values());
+}
+
+function updateSubjectReportSubtitle() {
+  const month = $("subjectReportMonth")?.value || getTodayParts().month;
+  const className = $("subjectReportClass")?.value.trim() || "All classes";
+  const section = $("subjectReportSection")?.value.trim() || "All sections";
+  const subject = $("subjectReportSubject")?.value.trim() || "All subjects";
+  const count = subjectAttendanceReportData.length;
+
+  $("subjectReportSubtitle").innerText =
+    `Showing: ${month} | Class: ${className} | Section: ${section} | Subject: ${subject} | Records: ${count}`;
+}
+
+function renderSubjectAttendanceReport(records) {
+  renderSubjectSummary(records);
+  renderSubjectStudentSummary(records);
+  renderSubjectAbsentLateList(records);
+}
+
+function renderSubjectSummary(records) {
+  const table = $("subjectSummaryTable");
+  table.innerHTML = "";
+
+  const rows = getSubjectSummaryRows(records);
+
+  if (!rows.length) {
+    table.innerHTML = `<tr><td colspan="8">No subject attendance data found</td></tr>`;
+    return;
+  }
+
+  rows.forEach((item) => {
+    const row = document.createElement("tr");
+
+    row.innerHTML = `
+      <td>${escapeHtml(item.subject)}</td>
+      <td>${escapeHtml(getDisplayClassName(item.className) || "")}</td>
+      <td>${escapeHtml(item.section || "")}</td>
+      <td>${item.total}</td>
+      <td>${item.present}</td>
+      <td>${item.absent}</td>
+      <td>${item.late}</td>
+      <td>${item.percent}%</td>
+    `;
+
+    table.appendChild(row);
+  });
+}
+
+function renderSubjectStudentSummary(records) {
+  const table = $("subjectStudentSummaryTable");
+  table.innerHTML = "";
+
+  const rows = getSubjectStudentSummaryRows(records);
+
+  if (!rows.length) {
+    table.innerHTML = `<tr><td colspan="9">No student subject summary found</td></tr>`;
+    return;
+  }
+
+  rows.forEach((item) => {
+    const row = document.createElement("tr");
+
+    row.innerHTML = `
+      <td>${escapeHtml(item.roll)}</td>
+      <td>${escapeHtml(item.name)}</td>
+      <td>${escapeHtml(getDisplayClassName(item.className) || "")}</td>
+      <td>${escapeHtml(item.section)}</td>
+      <td>${escapeHtml(item.subject)}</td>
+      <td>${item.present}</td>
+      <td>${item.absent}</td>
+      <td>${item.late}</td>
+      <td>${item.percent}%</td>
+    `;
+
+    table.appendChild(row);
+  });
+}
+
+function renderSubjectAbsentLateList(records) {
+  const table = $("subjectAbsentLateTable");
+  table.innerHTML = "";
+
+  const rows = records
+    .filter((record) => record.status === "Absent" || record.status === "Late")
+    .sort((a, b) =>
+      String(a.date || "").localeCompare(String(b.date || "")) ||
+      String(a.subject || "").localeCompare(String(b.subject || "")) ||
+      Number(a.roll || 0) - Number(b.roll || 0)
+    );
+
+  if (!rows.length) {
+    table.innerHTML = `<tr><td colspan="8">No absent or late subject records found</td></tr>`;
+    return;
+  }
+
+  rows.forEach((record) => {
+    const row = document.createElement("tr");
+
+    row.innerHTML = `
+      <td>${escapeHtml(record.date || "")}</td>
+      <td>${escapeHtml(record.subject || "")}</td>
+      <td>${escapeHtml(record.period || "-")}</td>
+      <td>${escapeHtml(record.roll || "")}</td>
+      <td>${escapeHtml(record.studentName || "")}</td>
+      <td>${escapeHtml(getDisplayClassName(record.className) || "")}</td>
+      <td>${escapeHtml(record.section || "")}</td>
+      <td>${escapeHtml(record.status || "")}</td>
+    `;
+
+    table.appendChild(row);
+  });
+}
+
+function getSubjectSummaryRows(records) {
+  const map = {};
+
+  records.forEach((record) => {
+    const key = [
+      normalizeText(record.subject),
+      normalizeClassName(record.className),
+      normalizeText(record.section)
+    ].join("|");
+
+    if (!map[key]) {
+      map[key] = {
+        subject: record.subject || "-",
+        className: record.className || "",
+        section: record.section || "",
+        total: 0,
+        present: 0,
+        absent: 0,
+        late: 0
+      };
+    }
+
+    map[key].total++;
+    if (record.status === "Present") map[key].present++;
+    if (record.status === "Absent") map[key].absent++;
+    if (record.status === "Late") map[key].late++;
+  });
+
+  return Object.values(map)
+    .map((item) => ({
+      ...item,
+      percent: item.total ? ((item.present / item.total) * 100).toFixed(2) : "0.00"
+    }))
+    .sort((a, b) =>
+      String(a.subject).localeCompare(String(b.subject)) ||
+      normalizeClassName(a.className).localeCompare(normalizeClassName(b.className), undefined, { numeric: true }) ||
+      normalizeText(a.section).localeCompare(normalizeText(b.section))
+    );
+}
+
+function getSubjectStudentSummaryRows(records) {
+  const map = {};
+
+  records.forEach((record) => {
+    const key = [
+      record.studentDocId || record.studentId || record.id,
+      normalizeText(record.subject)
+    ].join("|");
+
+    if (!map[key]) {
+      map[key] = {
+        roll: record.roll || "",
+        name: record.studentName || "",
+        className: record.className || "",
+        section: record.section || "",
+        subject: record.subject || "-",
+        total: 0,
+        present: 0,
+        absent: 0,
+        late: 0
+      };
+    }
+
+    map[key].total++;
+    if (record.status === "Present") map[key].present++;
+    if (record.status === "Absent") map[key].absent++;
+    if (record.status === "Late") map[key].late++;
+  });
+
+  return Object.values(map)
+    .map((item) => ({
+      ...item,
+      percent: item.total ? ((item.present / item.total) * 100).toFixed(2) : "0.00"
+    }))
+    .sort((a, b) =>
+      String(a.subject).localeCompare(String(b.subject)) ||
+      Number(a.roll || 0) - Number(b.roll || 0)
+    );
+}
+
+window.downloadSubjectAttendanceCSV = function () {
+  if (!subjectAttendanceReportData.length) {
+    alert("Load subject attendance report first");
+    return;
+  }
+
+  const rows = subjectAttendanceReportData.map((record) => [
+    record.date || "",
+    record.subject || "",
+    record.period || "",
+    record.roll || "",
+    record.studentName || "",
+    getDisplayClassName(record.className) || "",
+    record.section || "",
+    record.status || ""
+  ].map(csvSafe).join(","));
+
+  const csv = "Date,Subject,Period,Roll,Name,Class,Section,Status\n" + rows.join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+
+  link.href = url;
+  link.download = "subject-attendance-report.csv";
+  link.click();
+
+  URL.revokeObjectURL(url);
+};
+
+window.downloadSubjectAttendancePDF = function () {
+  if (!subjectAttendanceReportData.length) {
+    alert("Load subject attendance report first");
+    return;
+  }
+
+  if (!window.jspdf) {
+    alert("PDF library not loaded");
+    return;
+  }
+
+  const { jsPDF } = window.jspdf;
+  const pdf = new jsPDF();
+  const month = $("subjectReportMonth").value || "";
+
+  pdf.setFontSize(16);
+  pdf.text("FH School Management System", 14, 16);
+  pdf.setFontSize(13);
+  pdf.text("Subject Attendance Report - " + month, 14, 26);
+
+  const studentRows = getSubjectStudentSummaryRows(subjectAttendanceReportData).map((item) => [
+    item.roll,
+    item.name,
+    getDisplayClassName(item.className),
+    item.section,
+    item.subject,
+    item.present,
+    item.absent,
+    item.late,
+    item.percent + "%"
+  ]);
+
+  pdf.autoTable({
+    startY: 34,
+    head: [["Roll", "Name", "Class", "Section", "Subject", "Present", "Absent", "Late", "Attendance %"]],
+    body: studentRows
+  });
+
+  const issueRows = subjectAttendanceReportData
+    .filter((record) => record.status === "Absent" || record.status === "Late")
+    .map((record) => [
+      record.date || "",
+      record.subject || "",
+      record.period || "-",
+      record.roll || "",
+      record.studentName || "",
+      record.status || ""
+    ]);
+
+  pdf.addPage();
+  pdf.setFontSize(13);
+  pdf.text("Subject Absent / Late List", 14, 16);
+  pdf.autoTable({
+    startY: 24,
+    head: [["Date", "Subject", "Period", "Roll", "Name", "Status"]],
+    body: issueRows.length ? issueRows : [["-", "-", "-", "-", "No absent or late records", "-"]]
+  });
+
+  pdf.save(`subject-attendance-report-${month || "report"}.pdf`);
+};
 
 function getTodayParts() {
   const today = new Date();

@@ -91,6 +91,83 @@
     </table>
   </div>
 </div>
+          <div id="dashboardAnalyticsArea">
+            <div class="dashboardGrid">
+              <div class="card dashboardPanel">
+                <h3>Top 5 Students</h3>
+                <div class="tableWrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Rank</th>
+                        <th>Name</th>
+                        <th>Class</th>
+                        <th>Roll</th>
+                        <th>Result %</th>
+                      </tr>
+                    </thead>
+                    <tbody id="dashboardTopStudents"></tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div class="card dashboardPanel">
+                <h3>Weak Students</h3>
+                <div class="tableWrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Name</th>
+                        <th>Class</th>
+                        <th>Roll</th>
+                        <th>Result %</th>
+                      </tr>
+                    </thead>
+                    <tbody id="dashboardWeakStudents"></tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div class="card dashboardPanel">
+                <h3>Low Attendance</h3>
+                <div class="tableWrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Name</th>
+                        <th>Class</th>
+                        <th>Roll</th>
+                        <th>Attendance %</th>
+                      </tr>
+                    </thead>
+                    <tbody id="dashboardLowAttendance"></tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div class="card dashboardPanel" id="dashboardFeePanel">
+                <div class="buttonPanel">
+                  <h3 style="margin:0;">Fee Due List</h3>
+                  <button onclick="loadDashboardFeeAnalytics()">Refresh</button>
+                </div>
+                <p id="dashboardFeeSummary" style="margin-top:0;color:#64748b;">Fee summary will load for admin.</p>
+                <div class="tableWrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Student</th>
+                        <th>Class</th>
+                        <th>Fee</th>
+                        <th>Due</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody id="dashboardFeeDue"></tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
           <div id="studentProfileArea" style="display:none;">
   <div class="card">
     <h3>Student Profile</h3>
@@ -119,6 +196,7 @@
         <b>Attendance:</b> <span id="studentProfileAttendance">-</span> |
         <b>Attendance %:</b> <span id="studentProfileAttendancePercent">0%</span>
       </p>
+      <div id="studentProfileDocuments" class="documentLinks"></div>
     </div>
   </div>
 
@@ -196,6 +274,13 @@
                 <input id="emergencyContact" placeholder="Emergency Contact" />
                 <input id="bloodGroup" placeholder="Blood Group" />
                 <input id="address" placeholder="Address" />
+                <input id="previousSchool" placeholder="Previous School optional" />
+                <input id="studentPhotoUrl" placeholder="Student Photo link optional" />
+                <input id="studentPhotoDataUrl" type="hidden" />
+                <button type="button" onclick="openPhotoCapture('student')">Capture Photo</button>
+                <div id="studentPhotoPreview" class="photoPreview" style="display:none;"></div>
+                <input id="birthCertificateUrl" placeholder="Birth Certificate link optional" />
+                <input id="transferCertificateUrl" placeholder="Transfer Certificate link optional" />
 
                 <button onclick="addStudent()">Add Student</button>
               </div>
@@ -236,6 +321,67 @@
           </div>
         </div>
 
+        <div id="admissionPage" style="display:none;">
+          <div class="card">
+            <h3>New Admission Application</h3>
+            <div class="formRow">
+              <input id="admissionName" placeholder="Student Name">
+              <select id="admissionClass"></select>
+              <select id="admissionSection"></select>
+              <input id="admissionRoll" placeholder="Roll">
+              <input id="admissionEmail" type="email" placeholder="Student Email">
+              <input id="admissionFather" placeholder="Father Name">
+              <input id="admissionMother" placeholder="Mother Name">
+              <input id="admissionGuardianPhone" placeholder="Guardian Phone">
+              <input id="admissionEmergency" placeholder="Emergency Contact">
+              <input id="admissionBloodGroup" placeholder="Blood Group">
+              <input id="admissionAddress" placeholder="Address">
+              <input id="admissionPreviousSchool" placeholder="Previous School optional">
+              <input id="admissionPhotoUrl" placeholder="Student Photo link optional">
+              <input id="admissionPhotoDataUrl" type="hidden">
+              <button type="button" onclick="openPhotoCapture('admission')">Capture Photo</button>
+              <div id="admissionPhotoPreview" class="photoPreview" style="display:none;"></div>
+              <input id="admissionBirthCertificateUrl" placeholder="Birth Certificate link optional">
+              <input id="admissionTransferCertificateUrl" placeholder="Transfer Certificate link optional">
+              <textarea id="admissionNotes" class="noticeInput" placeholder="Admission notes optional"></textarea>
+              <button onclick="submitAdmission()">Save Admission</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="buttonPanel">
+              <h3 style="margin:0;">Admission Applications</h3>
+              <div class="formRow" style="margin:0;">
+                <select id="admissionStatusFilter" onchange="renderAdmissions()">
+                  <option value="all">All Status</option>
+                  <option value="Pending">Pending</option>
+                  <option value="Approved">Approved</option>
+                  <option value="Rejected">Rejected</option>
+                </select>
+                <button onclick="loadAdmissions()">Refresh</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="tableWrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Student</th>
+                  <th>Class</th>
+                  <th>Roll</th>
+                  <th>Guardian</th>
+                  <th>Documents</th>
+                  <th>Status</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="admissionTable"></tbody>
+            </table>
+            <div id="emptyAdmissions" class="emptyState" style="display:none;">No admission applications found</div>
+          </div>
+        </div>
+
         <div id="noticePage" style="display:none;">
           <div class="card">
             <h3>Publish Notice</h3>
@@ -256,6 +402,50 @@
             <div id="noticeManageList" class="noticeList">
               <div class="emptyState">No notices found</div>
             </div>
+          </div>
+        </div>
+
+        <div id="messagesPage" style="display:none;">
+          <div class="card" id="messageCreateCard">
+            <h3>Send Message</h3>
+            <div class="formRow">
+              <select id="messageTarget" onchange="updateMessageTargetMode()">
+                <option value="all">All Students</option>
+                <option value="classSection">Class / Section</option>
+                <option value="student">Single Student</option>
+              </select>
+              <select id="messageClass"></select>
+              <select id="messageSection"></select>
+              <input id="messageStudentId" placeholder="Student email / ID">
+              <input id="messageTitle" placeholder="Message Title">
+              <textarea id="messageBody" class="noticeInput" placeholder="Write message"></textarea>
+              <button onclick="publishMessage()">Send Message</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="buttonPanel">
+              <h3 id="messageListTitle" style="margin:0;">Messages</h3>
+              <button onclick="loadMessages()">Refresh Messages</button>
+            </div>
+          </div>
+
+          <div class="tableWrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>From</th>
+                  <th>Target</th>
+                  <th>Title</th>
+                  <th>Message</th>
+                  <th>Date</th>
+                  <th>Status</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="messageTable"></tbody>
+            </table>
+            <div id="emptyMessages" class="emptyState" style="display:none;">No messages found</div>
           </div>
         </div>
 
@@ -317,7 +507,9 @@
                     <th>Roll</th>
                     <th>Status</th>
                     <th>Submission</th>
+                    <th>Teacher Remarks</th>
                     <th>Submitted At</th>
+                    <th>Action</th>
                   </tr>
                 </thead>
                 <tbody id="homeworkSubmissionTable"></tbody>
@@ -381,6 +573,76 @@
               <tbody id="feeTable"></tbody>
             </table>
             <div id="emptyFees" class="emptyState" style="display:none;">No fee records found</div>
+          </div>
+        </div>
+
+        <div id="routinePage" style="display:none;">
+          <div class="card" id="routineCreateCard">
+            <h3>Create Routine</h3>
+            <div class="formRow">
+              <select id="routineType" onchange="updateRoutineFormMode()">
+                <option value="class">Class Routine</option>
+                <option value="exam">Exam Routine</option>
+              </select>
+              <select id="routineClass"></select>
+              <select id="routineSection"></select>
+              <select id="routineDay">
+                <option value="">Select Day</option>
+                <option>Saturday</option>
+                <option>Sunday</option>
+                <option>Monday</option>
+                <option>Tuesday</option>
+                <option>Wednesday</option>
+                <option>Thursday</option>
+              </select>
+              <input id="routineDate" type="date">
+              <input id="routineSubject" placeholder="Subject">
+              <input id="routineTitle" placeholder="Title / Exam Name">
+              <input id="routineStartTime" type="time">
+              <input id="routineEndTime" type="time">
+              <input id="routineTeacher" placeholder="Teacher">
+              <input id="routineRoom" placeholder="Room">
+              <button onclick="saveRoutine()">Save Routine</button>
+            </div>
+            <textarea id="routineNote" class="noticeInput" placeholder="Note optional"></textarea>
+          </div>
+
+          <div class="card">
+            <div class="buttonPanel">
+              <h3 id="routineListTitle" style="margin:0;">Routine</h3>
+              <div class="formRow" style="margin:0;">
+                <select id="routineFilterType" onchange="loadRoutineRecords()">
+                  <option value="class">Class Routine</option>
+                  <option value="exam">Exam Routine</option>
+                  <option value="all">All Routine</option>
+                </select>
+                <select id="routineFilterClass" onchange="renderRoutineRecords()"></select>
+                <select id="routineFilterSection" onchange="renderRoutineRecords()"></select>
+                <button onclick="loadRoutineRecords()">Refresh Routine</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="tableWrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Type</th>
+                  <th>Class</th>
+                  <th>Section</th>
+                  <th>Day / Date</th>
+                  <th>Time</th>
+                  <th>Subject</th>
+                  <th>Title</th>
+                  <th>Teacher</th>
+                  <th>Room</th>
+                  <th>Note</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="routineTable"></tbody>
+            </table>
+            <div id="emptyRoutine" class="emptyState" style="display:none;">No routine found</div>
           </div>
         </div>
 
@@ -517,12 +779,32 @@
 
         <div id="attendancePage" style="display:none;">
   <div class="card">
-    <h3>Daily Attendance</h3>
+    <div class="attendanceHeader">
+      <h3 style="margin:0;">Daily Attendance</h3>
+      <div class="attendanceReportActions">
+        <button onclick="showPage('monthlyReport')">Monthly Report</button>
+        <button onclick="showPage('subjectReport')">Subject Report</button>
+      </div>
+    </div>
 
-    <div class="formRow">
+    <div class="formRow attendanceControls">
+      <select id="attendanceType" onchange="updateAttendanceFormMode()">
+        <option value="daily">Daily Attendance</option>
+        <option value="subject">Subject Attendance</option>
+      </select>
       <input id="attendanceDate" type="date">
       <select id="attendanceClass"></select>
       <select id="attendanceSection"></select>
+      <select id="attendanceSubject" style="display:none;">
+        <option value="">Select Subject</option>
+        <option>Math</option>
+        <option>English</option>
+        <option>Bangla</option>
+        <option>Science</option>
+        <option>General Knowledge</option>
+        <option>Islamic Education</option>
+      </select>
+      <input id="attendancePeriod" style="display:none;" placeholder="Period / Time optional">
       <button onclick="loadAttendanceSheet()">Load Students</button>
     </div>
   </div>
@@ -634,6 +916,90 @@
             </div>
           </div>
         </div>
+
+        <div id="subjectReportPage" style="display:none;">
+          <div class="card">
+            <h3>Subject Attendance Report</h3>
+            <p id="subjectReportSubtitle" style="margin-top:0;color:#64748b;">Select month, class, section, and subject, then load report.</p>
+
+            <div class="formRow">
+              <input id="subjectReportMonth" type="month">
+              <select id="subjectReportClass"></select>
+              <select id="subjectReportSection"></select>
+              <select id="subjectReportSubject"></select>
+              <button onclick="loadSubjectAttendanceReport()">Load Report</button>
+              <button onclick="downloadSubjectAttendanceCSV()">Download CSV</button>
+              <button onclick="downloadSubjectAttendancePDF()">Download PDF</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3>Subject-wise Summary</h3>
+
+            <div class="tableWrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Subject</th>
+                    <th>Class</th>
+                    <th>Section</th>
+                    <th>Total Records</th>
+                    <th>Present</th>
+                    <th>Absent</th>
+                    <th>Late</th>
+                    <th>Attendance %</th>
+                  </tr>
+                </thead>
+                <tbody id="subjectSummaryTable"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3>Student-wise Subject Summary</h3>
+
+            <div class="tableWrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Roll</th>
+                    <th>Name</th>
+                    <th>Class</th>
+                    <th>Section</th>
+                    <th>Subject</th>
+                    <th>Present</th>
+                    <th>Absent</th>
+                    <th>Late</th>
+                    <th>Attendance %</th>
+                  </tr>
+                </thead>
+                <tbody id="subjectStudentSummaryTable"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3>Subject Absent / Late List</h3>
+
+            <div class="tableWrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Subject</th>
+                    <th>Period</th>
+                    <th>Roll</th>
+                    <th>Name</th>
+                    <th>Class</th>
+                    <th>Section</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody id="subjectAbsentLateTable"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -669,6 +1035,7 @@
         <b>Attendance:</b> <span id="modalProfileAttendance">-</span> |
         <b>Attendance %:</b> <span id="modalProfileAttendancePercent">0%</span>
       </p>
+      <div id="modalProfileDocuments" class="documentLinks"></div>
     </div>
 
     <div class="formRow">
@@ -718,6 +1085,30 @@
   </div>
 </div>
 
+<div id="photoCaptureModal" class="modalOverlay">
+  <div class="modalBox photoModalBox">
+    <div class="modalHeader">
+      <h3>Capture Student Photo</h3>
+      <button class="secondaryBtn" onclick="closePhotoCapture()">Close</button>
+    </div>
+
+    <div class="photoCaptureArea">
+      <video id="photoVideo" autoplay playsinline></video>
+      <canvas id="photoCanvas" style="display:none;"></canvas>
+    </div>
+
+    <p id="photoCaptureStatus" style="color:#64748b;margin:12px 0 0;">
+      Allow camera access, then click Take Photo.
+    </p>
+
+    <div class="modalActions">
+      <button onclick="takeStudentPhoto()">Take Photo</button>
+      <button class="secondaryBtn" onclick="clearCapturedPhoto()">Clear Photo</button>
+      <button class="secondaryBtn" onclick="closePhotoCapture()">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <script>
   window.addEventListener("error", function (event) {
     if (event.target && event.target.tagName === "SCRIPT") {
@@ -734,8 +1125,8 @@
     alert("App script not loaded yet. Open Console and check the red error for js/app.js or Firebase imports.");
   };
 </script>
-<script>
-  import("./js/app.js?v=20260525-login-classic-import")
+<script type="module">
+  import("./js/app.js?v=20260611-photo-layout")
     .then(function () {
       var button = document.getElementById("loginBtn");
       var status = document.getElementById("loginStatus");
